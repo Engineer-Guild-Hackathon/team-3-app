@@ -4,58 +4,51 @@ title: "[SPEC]: "
 labels: ["specification-change", "enhancement"]
 assignees: ''
 body:
-
-type: markdown
-attributes:
-value: |
-既存機能の仕様変更を提案していただきありがとうございます。
-変更の背景や影響範囲が明確にわかるよう、以下の項目にご記入ください。
-
-type: input
-id: target-feature
-attributes:
-label: "変更対象の機能 (Target Feature)"
-description: "どの機能の仕様を変更したいですか？"
-placeholder: "例: ユーザー認証API、商品一覧ページ"
-validations:
-required: true
-
-type: textarea
-id: reason-for-change
-attributes:
-label: "変更理由 (Reason for Change)"
-description: "なぜこの仕様変更が必要なのですか？背景にあるビジネス要件や技術的課題などを記述してください。"
-placeholder: "例: 新しい要件〇〇に対応するため、APIのレスポンスに〇〇のフィールドを追加する必要があるため。"
-validations:
-required: true
-
-type: textarea
-id: current-spec
-attributes:
-label: "現在の仕様 (Current Specification)"
-description: "現在の機能の仕様や挙動を記述してください。"
-placeholder: "例: 現在のGET /api/users/{id} のレスポンスには name と email のみが含まれる。"
-validations:
-required: true
-
-type: textarea
-id: new-spec
-attributes:
-label: "変更後の仕様 (New Specification)"
-description: "変更後の理想的な仕様や挙動を記述してください。"
-placeholder: "例: 変更後のGET /api/users/{id} のレスポンスに createdAt フィールドを追加する。"
-validations:
-required: true
-
-type: textarea
-id: impact-analysis
-attributes:
-label: "影響範囲 (Impact Analysis)"
-description: "この変更によって影響を受ける他の機能、データベース、API、ドキュメントなどを記述してください。"
-placeholder: "例: ・フロントエンド側でのレスポンス型の変更が必要 ・APIドキュメントの更新"
-
-type: textarea
-id: risks-and-concerns
-attributes:
-label: "懸念点・リスク (Risks & Concerns)"
-description: "後方互換性がなくなる、特定のデータ移行が必要になるなどのリスクがあれば記述してください。"
+  - type: markdown
+    attributes:
+      value: |
+        既存機能の仕様変更を提案していただきありがとうございます。
+        変更の背景や影響範囲が明確にわかるよう、以下の項目にご記入ください。
+  - type: input
+    id: target-feature
+    attributes:
+      label: "変更対象の機能 (Target Feature)"
+      description: "どの機能の仕様を変更したいですか？"
+      placeholder: "例: ユーザー認証API、商品一覧ページ"
+    validations:
+      required: true
+  - type: textarea
+    id: reason-for-change
+    attributes:
+      label: "変更理由 (Reason for Change)"
+      description: "なぜこの仕様変更が必要なのですか？背景にあるビジネス要件や技術的課題などを記述してください。"
+      placeholder: "例: 新しい要件〇〇に対応するため、APIのレスポンスに〇〇のフィールドを追加する必要があるため。"
+    validations:
+      required: true
+  - type: textarea
+    id: current-spec
+    attributes:
+      label: "現在の仕様 (Current Specification)"
+      description: "現在の機能の仕様や挙動を記述してください。"
+      placeholder: "例: 現在のGET /api/users/{id} のレスポンスには name と email のみが含まれる。"
+    validations:
+      required: true
+  - type: textarea
+    id: new-spec
+    attributes:
+      label: "変更後の仕様 (New Specification)"
+      description: "変更後の理想的な仕様や挙動を記述してください。"
+      placeholder: "例: 変更後のGET /api/users/{id} のレスポンスに createdAt フィールドを追加する。"
+    validations:
+      required: true
+  - type: textarea
+    id: impact-analysis
+    attributes:
+      label: "影響範囲 (Impact Analysis)"
+      description: "この変更によって影響を受ける他の機能、データベース、API、ドキュメントなどを記述してください。"
+      placeholder: "例: ・フロントエンド側でのレスポンス型の変更が必要 ・APIドキュメントの更新"
+  - type: textarea
+    id: risks-and-concerns
+    attributes:
+      label: "懸念点・リスク (Risks & Concerns)"
+      description: "後方互換性がなくなる、特定のデータ移行が必要になるなどのリスクがあれば記述してください。"

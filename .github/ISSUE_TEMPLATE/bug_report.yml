@@ -4,63 +4,56 @@ title: "[BUG]: "
 labels: ["bug", "triage"]
 assignees: ''
 body:
-
-type: markdown
-attributes:
-value: |
-バグを報告していただきありがとうございます。
-以下のテンプレートに従って、できるだけ詳細に情報を提供してください。
-
-type: textarea
-id: steps-to-reproduce
-attributes:
-label: "再現手順 (Steps to Reproduce)"
-description: "バグを再現させるための具体的な手順を記述してください。"
-placeholder: |
-1. 〇〇のページにアクセスする
-2. 〇〇ボタンをクリックする
-3. 〇〇というエラーが表示される
-validations:
-required: true
-
-type: textarea
-id: expected-behavior
-attributes:
-label: "期待される挙動 (Expected Behavior)"
-description: "本来はどうなるべきだったかを記述してください。"
-placeholder: "〇〇が正常に表示される"
-validations:
-required: true
-
-type: textarea
-id: actual-behavior
-attributes:
-label: "実際の挙動 (Actual Behavior)"
-description: "実際に何が起こったかを記述してください。"
-placeholder: "エラーメッセージが表示され、画面が真っ白になる"
-validations:
-required: true
-
-type: textarea
-id: screenshots
-attributes:
-label: "スクリーンショット (Screenshots)"
-description: "可能であれば、問題がわかるスクリーンショットを添付してください。"
-
-type: dropdown
-id: os
-attributes:
-label: "OS"
-multiple: true
-options:
-- Windows
-- macOS
-- Linux
-- iOS
-- Android
-
-type: textarea
-id: additional-context
-attributes:
-label: "その他 (Additional Context)"
-description: "その他、問題解決に役立つ情報があれば記述してください。（ブラウザの種類とバージョンなど）"
+  - type: markdown
+    attributes:
+      value: |
+        バグを報告していただきありがとうございます。
+        以下のテンプレートに従って、できるだけ詳細に情報を提供してください。
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: "再現手順 (Steps to Reproduce)"
+      description: "バグを再現させるための具体的な手順を記述してください。"
+      placeholder: |
+        1. 〇〇のページにアクセスする
+        2. 〇〇ボタンをクリックする
+        3. 〇〇というエラーが表示される
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: "期待される挙動 (Expected Behavior)"
+      description: "本来はどうなるべきだったかを記述してください。"
+      placeholder: "〇〇が正常に表示される"
+    validations:
+      required: true
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: "実際の挙動 (Actual Behavior)"
+      description: "実際に何が起こったかを記述してください。"
+      placeholder: "エラーメッセージが表示され、画面が真っ白になる"
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: "スクリーンショット (Screenshots)"
+      description: "可能であれば、問題がわかるスクリーンショットを添付してください。"
+  - type: dropdown
+    id: os
+    attributes:
+      label: "OS"
+      multiple: true
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - iOS
+        - Android
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: "その他 (Additional Context)"
+      description: "その他、問題解決に役立つ情報があれば記述してください。（ブラウザの種類とバージョンなど）"
