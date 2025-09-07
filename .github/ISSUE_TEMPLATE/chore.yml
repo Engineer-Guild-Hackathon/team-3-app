@@ -2,7 +2,6 @@ name: "🧹 Chore (雑務・メンテナンス)"
 description: "ビルド、CI/CD、ドキュメント、依存関係の更新など"
 title: "[Chore]: "
 labels: ["chore"]
-assignees: ''
 body:
   - type: markdown
     attributes:
