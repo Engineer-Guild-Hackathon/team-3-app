@@ -4,46 +4,41 @@ title: "[Chore]: "
 labels: ["chore"]
 assignees: ''
 body:
-
-type: markdown
-attributes:
-value: |
-ライブラリのアップデート、ビルド設定の変更、ドキュメントの修正といった、ユーザー向けの機能に直接影響しないメンテナンス作業はこちらをご利用ください。
-
-type: dropdown
-id: chore-type
-attributes:
-label: "作業の種類 (Type of Chore)"
-description: "最も近い作業の種類を選択してください。"
-multiple: true
-options:
-- 依存関係の更新 (Dependency Update)
-- ビルド設定の変更 (Build/CI Configuration)
-- ドキュメントの修正・追加 (Documentation)
-- リファクタリング (Refactoring)
-- パフォーマンス改善 (Performance Improvement)
-- その他 (Other)
-validations:
-required: true
-
-type: textarea
-id: task-description
-attributes:
-label: "作業内容 (Task Description)"
-description: "どのような作業を行うか、具体的に記述してください。"
-placeholder: "例: Reactをv17からv18にアップデートする"
-validations:
-required: true
-
-type: textarea
-id: motivation
-attributes:
-label: "動機 (Motivation)"
-description: "なぜこの作業が必要なのですか？"
-placeholder: "例: 最新の機能を利用するため。セキュリティ脆弱性に対応するため。"
-
-type: textarea
-id: additional-context
-attributes:
-label: "その他 (Additional Context)"
-description: "その他、関連情報があれば記述してください。"
+  - type: markdown
+    attributes:
+      value: |
+        ライブラリのアップデート、ビルド設定の変更、ドキュメントの修正といった、ユーザー向けの機能に直接影響しないメンテナンス作業はこちらをご利用ください。
+  - type: dropdown
+    id: chore-type
+    attributes:
+      label: "作業の種類 (Type of Chore)"
+      description: "最も近い作業の種類を選択してください。"
+      multiple: true
+      options:
+        - 依存関係の更新 (Dependency Update)
+        - ビルド設定の変更 (Build/CI Configuration)
+        - ドキュメントの修正・追加 (Documentation)
+        - リファクタリング (Refactoring)
+        - パフォーマンス改善 (Performance Improvement)
+        - その他 (Other)
+    validations:
+      required: true
+  - type: textarea
+    id: task-description
+    attributes:
+      label: "作業内容 (Task Description)"
+      description: "どのような作業を行うか、具体的に記述してください。"
+      placeholder: "例: Reactをv17からv18にアップデートする"
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: "動機 (Motivation)"
+      description: "なぜこの作業が必要なのですか？"
+      placeholder: "例: 最新の機能を利用するため。セキュリティ脆弱性に対応するため。"
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: "その他 (Additional Context)"
+      description: "その他、関連情報があれば記述してください。"
