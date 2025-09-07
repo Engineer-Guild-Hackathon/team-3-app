@@ -1,1 +1,15 @@
 blank_issues_enabled: false
+
+defaults:
+  - template: bug_report.yml
+    name: "🐞 Bug Report (バグ報告)"
+    about: "バグを報告する"
+  - template: feature_suggest.yml
+    name: "✨ Feature Request (機能要望)"
+    about: "新しい機能や改善を提案する"
+  - template: specification_change.yml
+    name: "♻️ Specification Change (仕様変更)"
+    about: "既存機能の仕様変更を提案する"
+  - template: chore.yml
+    name: "🧹 Chore (雑務・メンテナンス)"
+    about: "ビルド、CI/CD、ドキュメント、依存関係の更新など"
