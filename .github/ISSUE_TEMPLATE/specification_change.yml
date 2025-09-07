@@ -2,9 +2,7 @@ name: "♻️ Specification Change (仕様変更)"
 description: "既存機能の仕様変更を提案します"
 title: "[SPEC]: "
 labels: ["specification-change", "enhancement"]
-assignees:
-
-''
+assignees: ''
 body:
 
 type: markdown

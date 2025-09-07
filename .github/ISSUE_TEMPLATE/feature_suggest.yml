@@ -2,9 +2,7 @@ name: "✨ Feature Request (機能要望)"
 description: "新しい機能や改善を提案します"
 title: "[FEAT]: "
 labels: ["enhancement", "feature-request"]
-assignees:
-
-''
+assignees: ''
 body:
 
 type: textarea
