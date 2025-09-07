@@ -2,7 +2,6 @@ name: "🐞 Bug Report (バグ報告)"
 description: "動作上の問題や不具合を報告します"
 title: "[BUG]: "
 labels: ["bug", "triage"]
-assignees: ''
 body:
   - type: markdown
     attributes:
