@@ -30,14 +30,22 @@ export default function UserMenu() {
 
   return (
     <div className="flex items-center gap-2">
-      <div className="hidden md:flex flex-col items-end leading-tight">
-        {name && <span className="text-sm truncate max-w-[12rem]">{name}</span>}
+      <Link
+        href="/"
+        className="hidden md:flex flex-col items-end leading-tight group"
+        title="プロフィールへ"
+      >
+        {name && (
+          <span className="text-sm truncate max-w-[12rem] group-hover:underline">
+            {name}
+          </span>
+        )}
         {email && (
-          <span className="text-[11px] text-black/60 dark:text-white/60 truncate max-w-[12rem]">
+          <span className="text-[11px] text-black/60 dark:text-white/60 truncate max-w-[12rem] group-hover:underline">
             {email}
           </span>
         )}
-      </div>
+      </Link>
       <button
         onClick={() => signOut({ callbackUrl: "/login" })}
         className="inline-flex items-center justify-center rounded-md px-2 py-1 text-xs border border-black/10 dark:border-white/10 hover:bg-black/10 dark:hover:bg-white/10"
@@ -49,4 +57,3 @@ export default function UserMenu() {
     </div>
   );
 }
-
