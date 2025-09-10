@@ -1,5 +1,7 @@
 services:
   web:
+    platform: linux/amd64
+    image: team3app-web:prod
     build:
       context: .
       target: runner
