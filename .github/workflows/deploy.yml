@@ -1,0 +1,83 @@
+name: Deploy to Azure App Service (Container, Compose+Bake)
+
+on:
+  push:
+    branches: [ "main" ]        # ← main に入ったら（= PR マージ含む）実行
+  workflow_dispatch:             # ← 手動実行も残す
+
+# 連打防止（新しい実行が来たら前のをキャンセル）
+concurrency:
+  group: prod-deploy
+  cancel-in-progress: true
+
+permissions:
+  id-token: write   # ← OIDC 用（必須）
+  contents: read
+
+env:
+  AZURE_RESOURCE_GROUP: WebApp                    # RG 名
+  AZURE_WEBAPP_NAME: WebAppForHackathon           # Web App 名
+  ACR_NAME: WebAppForHackathon                    # ACR 名
+  ACR_LOGIN_SERVER: webappforhackathon-dme0eugjfte8atf2.azurecr.io  # ACR のログインサーバー名
+  IMAGE_NAME: app-web                             # ACR のリポジトリ名
+  IMAGE_TAG: ${{ github.sha }}                    # 一意タグ（latest も押す）
+  CONTAINER_PORT: "3000"                          # あなたのアプリの待受ポート
+  COMPOSE_FILE: docker-compose.prod.yml           # ルート直下の compose を使用
+  BAKE_TARGET: web                                # compose 内の service 名
+  BAKE_PLATFORM: linux/amd64                      # App Service は x64
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --- Azure に OIDC ログイン（Secrets は ID 値のみ） ---
+      # Secrets: AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      # 参考: OIDC での azure/login 推奨
+
+      # --- ACR にログイン（push 用） ---
+      - name: ACR Login via Azure CLI
+        run: |
+          echo "Logging in to ACR..."
+          az acr login --name $ACR_NAME
+
+      # --- Buildx + Bake（compose をそのままビルド＆push） ---
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Bake build and push from compose
+        uses: docker/bake-action@v5
+        with:
+          files: ${{ env.COMPOSE_FILE }}
+          targets: ${{ env.BAKE_TARGET }}     # compose の service 名
+          push: true
+          set: |
+            ${{ env.BAKE_TARGET }}.platform=${{ env.BAKE_PLATFORM }}
+            ${{ env.BAKE_TARGET }}.tags=${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }},${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
+      # 参考: Compose→Bake で本番イメージを declarative にビルド
+
+      # --- 念のためポート設定（初回/差分なくてもOK）---
+      - name: Ensure WEBSITES_PORT
+        run: |
+          echo "Setting WEBSITES_PORT..."
+          az webapp config appsettings set \
+            -g $AZURE_RESOURCE_GROUP -n $AZURE_WEBAPP_NAME \
+            --settings WEBSITES_PORT=${{ env.CONTAINER_PORT }}
+      # 参考: カスタムコンテナは WEBSITES_PORT 必須
+
+      # --- Web App の使用イメージを更新（デプロイ） ---
+      - name: Deploy to Web App (Container)
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          images: ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+      # 参考: コンテナの反映は webapps-deploy の images 指定が公式推奨
