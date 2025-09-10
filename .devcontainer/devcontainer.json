@@ -1,0 +1,17 @@
+{
+  "name": "team-3-app (Next.js)",
+  "dockerComposeFile": ["../docker-compose.dev.yml"],
+  "service": "web",
+  "workspaceFolder": "/app",
+  "overrideCommand": true,
+  "postCreateCommand": "npm ci || true",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss"
+      ]
+    }
+  }
+}

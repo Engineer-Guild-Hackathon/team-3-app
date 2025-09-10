@@ -1,0 +1,11 @@
+services:
+  web:
+    build:
+      context: .
+      target: runner
+    container_name: team3app-web-stg
+    ports: ["3001:3000"]
+    environment:
+      - NODE_ENV=production
+      - APP_ENV=stg
+    # env_file: [.env.staging]
