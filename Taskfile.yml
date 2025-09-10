@@ -1,0 +1,44 @@
+version: '3'
+
+# 要件: 実行は全て Docker。ローカル起動は dev のみ。それ以外は build のみ。
+
+tasks:
+  default:
+    desc: Show task list
+    silent: true
+    cmds:
+      - echo "Available tasks:" && task --list-all
+
+  # --- Dev (起動はローカルのみ/Compose使用) -------------------------------
+  dev:
+    desc: Run dev via Docker Compose (foreground)
+    interactive: true
+    cmds:
+      - echo "Starting dev (Docker Compose)..."
+      - docker compose -f docker-compose.dev.yml up
+
+  dev:down:
+    desc: Stop dev containers and remove orphans
+    cmds:
+      - echo "Stopping dev containers..."
+      - docker compose -f docker-compose.dev.yml down --remove-orphans
+
+  # --- Build only (Staging/Production) -------------------------------------
+  build:stg:
+    desc: Build staging image only (no run)
+    cmds:
+      - echo "Building staging image..."
+      - docker compose -f docker-compose.stg.yml build
+
+  build:prod:
+    desc: Build production image only (no run)
+    cmds:
+      - echo "Building production image..."
+      - docker compose -f docker-compose.prod.yml build
+
+  build:all:
+    desc: Build both staging and production images
+    cmds:
+      - task build:stg
+      - task build:prod
+
