@@ -5,6 +5,8 @@ services:
       target: dev
     container_name: team3app-web-dev
     ports: ["3000:3000"]
+    env_file:
+      - .env
     environment:
       - NODE_ENV=development
       - CHOKIDAR_USEPOLLING=true

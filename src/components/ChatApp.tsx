@@ -8,6 +8,7 @@ import type { ChatMessage, ChatSession } from "@/types/chat";
 import ChatInput from "./chat/ChatInput";
 import MessageList from "./chat/MessageList";
 import Sidebar from "./sidebar/Sidebar";
+import UserMenu from "@/components/auth/UserMenu";
 
 // UUID生成（衝突リスクが非常に低い）
 const rid = () => crypto.randomUUID();
@@ -225,7 +226,10 @@ export default function ChatApp({ initialId }: Props) {
             )}
             <div className="font-semibold truncate">Chat</div>
           </div>
-          <div className="text-xs text-black/50 dark:text-white/50">UI Demo</div>
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-black/50 dark:text-white/50 hidden sm:block">UI Demo</div>
+            <UserMenu />
+          </div>
         </div>
 
         {/* 本文 */}
