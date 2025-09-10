@@ -1,0 +1,103 @@
+# CI ワークフロー（日本語コメント）
+# - push / pull_request 時に lint / test / build を実行
+# - build は OS マトリクスで実施し、OS非依存性を確認
+
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - "**"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint / Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Detect package scripts
+        id: detect
+        shell: bash
+        run: |
+          node -e "const s=(require('./package.json').scripts)||{}; const out=(k)=>console.log(\`${k}=\${k in s}\`); out('lint'); out('test'); out('typecheck');" >> $GITHUB_OUTPUT
+
+      # ESLint が設定されている場合のみ実行
+      - name: Run ESLint (if present)
+        if: steps.detect.outputs.lint == 'true'
+        run: npm run -s lint
+
+      # プロジェクト標準の型チェック（lint 相当の静的検査）
+      - name: Run Type Check
+        run: npm run -s typecheck
+
+  test:
+    name: Test (if present)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Detect test script
+        id: detect
+        run: |
+          node -e "const s=(require('./package.json').scripts)||{}; console.log('test=' + ('test' in s));" >> $GITHUB_OUTPUT
+
+      - name: Run tests
+        if: steps.detect.outputs.test == 'true'
+        run: npm test --silent
+
+  build:
+    name: Build (OS matrix)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: npm run -s build
