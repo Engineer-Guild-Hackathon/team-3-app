@@ -7,9 +7,10 @@ WORKDIR /app
 FROM node:22-alpine AS dev
 ENV NODE_ENV=development NEXT_TELEMETRY_DISABLED=1 CHOKIDAR_USEPOLLING=true
 WORKDIR /app
-# 開発時はボリュームマウントするため依存は起動後にnpm ciでも可
+COPY package*.json ./
+RUN npm ci
 EXPOSE 3000
-CMD ["npm","run","dev","--","-p","3000","-H","0.0.0.0"]
+CMD ["npm","run","dev","--","-p","3000","--hostname","0.0.0.0"]
 
 # Builder
 FROM node:22-alpine AS builder
