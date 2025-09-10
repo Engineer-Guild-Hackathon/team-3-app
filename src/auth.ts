@@ -29,10 +29,22 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
   },
   callbacks: {
-    async signIn({ profile }) {
-      const allowDomain = process.env.ALLOWED_EMAIL_DOMAIN;
+    async signIn({ user, profile }) {
+      // 1) 個別メール許可（カンマ区切り）。設定がある場合は最優先で適用
+      const allowedEmails = (process.env.ALLOWED_EMAILS || "")
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+
+      const email = (user?.email || (profile as any)?.email || "").toLowerCase();
+
+      if (allowedEmails.length > 0) {
+        return email ? allowedEmails.includes(email) : false;
+      }
+
+      // 2) ドメイン許可（フォールバック）
+      const allowDomain = process.env.ALLOWED_EMAIL_DOMAIN?.toLowerCase();
       if (!allowDomain) return true;
-      const email = (profile as any)?.email as string | undefined;
       if (!email) return false;
       const domain = email.split("@")[1];
       return domain === allowDomain;

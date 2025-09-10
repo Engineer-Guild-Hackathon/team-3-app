@@ -37,6 +37,7 @@
 セットアップ:
 
 1) `.env` を作成（`.env.example` を参照）
+   - `.env.example` はリポジトリで追跡されるため、必要な環境変数の雛形として常に最新化します。
 
 ```
 NEXTAUTH_SECRET=（ランダム文字列）
@@ -45,6 +46,8 @@ GOOGLE_CLIENT_ID=（Google Cloud で取得）
 GOOGLE_CLIENT_SECRET=（Google Cloud で取得）
 # 任意: 指定ドメインのみ許可する場合
 # ALLOWED_EMAIL_DOMAIN=school.ac.jp
+# 任意: 指定メールのみ許可（カンマ区切り。設定時はこれが最優先）
+# ALLOWED_EMAILS=dev1@example.com,dev2@example.com
 ```
 
 2) Google Cloud Console で OAuth クライアント（Web）を作成し、承認済みリダイレクト URI に以下を追加:
