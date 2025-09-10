@@ -7,8 +7,8 @@ import ChatInput from "./chat/ChatInput";
 import Sidebar from "./sidebar/Sidebar";
 import type { ChatMessage, ChatSession } from "@/types/chat";
 
-// 簡易ID生成（衝突リスクが低いランダムID。重要用途にはUUID推奨）
-const rid = () => Math.random().toString(36).slice(2, 10);
+// UUID生成（衝突リスクが非常に低い）
+const rid = () => crypto.randomUUID();
 
 // LocalStorage キー
 const STORAGE_KEY = "chat:sessions:v1";
@@ -83,7 +83,7 @@ export default function ChatApp({ initialId }: Props) {
     if (initialId && initialId !== activeId) {
       setActiveId(initialId);
     }
-  }, [initialId]);
+  }, [initialId, activeId]);
 
   // サイドバーUIの初期化（開閉のみ）
   useEffect(() => {
@@ -158,7 +158,7 @@ export default function ChatApp({ initialId }: Props) {
     setSending(false);
   };
 
-  const onPickSuggestion = (text: string) => setInput(text);
+  // 予備：提案カードの選択ハンドラ（未使用）
 
   // 初期読み込みが終わるまでは表示を抑制して履歴画面のチラつきを防ぐ
   if (!bootstrapped && initialId) {
