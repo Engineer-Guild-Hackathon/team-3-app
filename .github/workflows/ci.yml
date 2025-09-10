@@ -1,0 +1,87 @@
+# CI ワークフロー（日本語コメント）
+# - push / pull_request 時に lint / test / build を実行
+# - build は OS マトリクスで実施し、OS非依存性を確認
+
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - "**"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint / Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ESLint（スクリプトが無ければ無視）
+      - name: Run ESLint
+        run: npm run -s lint --if-present
+
+      # プロジェクト標準の型チェック（lint 相当の静的検査）
+      - name: Run Type Check
+        run: npm run -s typecheck
+
+  test:
+    name: Test (if present)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests (if present)
+        run: npm test --silent --if-present
+
+  build:
+    name: Build (OS matrix)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: npm run -s build

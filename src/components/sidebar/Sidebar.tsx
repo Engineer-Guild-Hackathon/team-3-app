@@ -1,8 +1,9 @@
 "use client";
 
-import { ChatSession } from "@/types/chat";
 import Link from "next/link";
 import { useState } from "react";
+
+import { ChatSession } from "@/types/chat";
 
 type Props = {
   sessions: ChatSession[];
@@ -18,7 +19,7 @@ type Props = {
 /**
  * 左サイドバー（新規チャット + 履歴）
  */
-export default function Sidebar({ sessions, onNewChat, onSelectChat, activeId, onRename, onDelete, collapsed, onToggle }: Props) {
+export default function Sidebar({ sessions, onNewChat, activeId, onRename, onDelete, collapsed, onToggle }: Props) {
   // メニューとインライン編集用の状態（日本語コメント）
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);

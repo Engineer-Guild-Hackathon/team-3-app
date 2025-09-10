@@ -23,6 +23,8 @@
 # misc
 .DS_Store
 *.pem
+.eslintcache
+.cache/
 
 # debug
 npm-debug.log*
@@ -39,3 +41,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+# cach
+.cache/
