@@ -122,9 +122,12 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
     router.push(`/chats/${newSession.id}`);
   };
 
-  // 送信処理（UIのみ）
+  // 送信処理（API接続版）
   const handleSend = async () => {
+    // ガード
     if (!active || !input.trim() || sending) return;
+
+    // 1) ユーザーメッセージをセッションに反映
     const userMsg: ChatMessage = {
       id: rid(),
       role: "user",
@@ -132,7 +135,6 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
       createdAt: Date.now(),
     };
 
-    // セッションタイトルを1件目のユーザーメッセージから自動生成（簡易）
     const nextSessions = sessions.map((s) =>
       s.id === active.id
         ? {
@@ -147,25 +149,58 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
     persist(nextSessions);
     setInput("");
 
-    // ダミー応答（バックエンド未接続のため）
+    // 2) バックエンドへ送信
     setSending(true);
-    await new Promise((r) => setTimeout(r, 600));
-    const assistant: ChatMessage = {
-      id: rid(),
-      role: "assistant",
-      content:
-        "これはダミーの回答です。API接続後に置き換えてください。\n\n- 入力: " +
-        userMsg.content,
-      createdAt: Date.now(),
-    };
-    const withAssistant = nextSessions.map((s) =>
-      s.id === active.id
-        ? { ...s, messages: [...s.messages, assistant], updatedAt: Date.now() }
-        : s
-    );
-    setSessions(withAssistant);
-    persist(withAssistant);
-    setSending(false);
+    try {
+      const current = nextSessions.find((s) => s.id === active.id)!;
+      // API へ渡す最小メッセージ形式に変換
+      const payload = {
+        messages: current.messages.map((m) => ({ role: m.role, content: m.content })),
+      };
+
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({} as any));
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error ?? `HTTP ${res.status}`);
+      }
+
+      // 3) 応答メッセージを追記
+      const assistant: ChatMessage = {
+        id: rid(),
+        role: "assistant",
+        content: String(data.result?.text ?? ""),
+        createdAt: Date.now(),
+      };
+      const withAssistant = nextSessions.map((s) =>
+        s.id === active.id
+          ? { ...s, messages: [...s.messages, assistant], updatedAt: Date.now() }
+          : s
+      );
+      setSessions(withAssistant);
+      persist(withAssistant);
+    } catch (e: any) {
+      // エラー時はメッセージとして表示
+      const err: ChatMessage = {
+        id: rid(),
+        role: "assistant",
+        content: `エラーが発生しました: ${String(e?.message ?? e)}`,
+        createdAt: Date.now(),
+      };
+      const withError = nextSessions.map((s) =>
+        s.id === active.id
+          ? { ...s, messages: [...s.messages, err], updatedAt: Date.now() }
+          : s
+      );
+      setSessions(withError);
+      persist(withError);
+    } finally {
+      setSending(false);
+    }
   };
 
   // 予備：提案カードの選択ハンドラ（未使用）
