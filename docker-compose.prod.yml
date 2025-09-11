@@ -7,6 +7,9 @@ services:
       target: runner
     container_name: team3app-web-prod
     ports: ["3000:3000"]
+    # 本番も公開可の共通設定のみ読み込み
+    env_file:
+      - .env.common
     environment:
       - NODE_ENV=production
       - APP_ENV=prod

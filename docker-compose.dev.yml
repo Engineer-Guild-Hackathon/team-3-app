@@ -5,6 +5,10 @@ services:
       target: dev
     container_name: team3app-web-dev
     ports: ["3000:3000"]
+    # Compose で .env を読み込み（後勝ちで上書き）
+    env_file:
+      - .env.common
+      - .env.dev
     environment:
       - NODE_ENV=development
       - CHOKIDAR_USEPOLLING=true
