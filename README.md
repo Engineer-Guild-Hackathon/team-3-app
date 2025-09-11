@@ -5,6 +5,7 @@
 ---
 
 ## チーム情報
+
 - チーム番号: 3
 - チーム名: （ここに記入）
 - プロダクト名: （ここに記入）
@@ -13,7 +14,8 @@
 ---
 
 ## デモ　/ プレゼン資料
-- デモURL: 
+
+- デモURL:
 - プレゼンURL：
 
 ---
@@ -29,7 +31,7 @@
 task dev
 ```
 
-ブラウザで http://localhost:3000 を開いてください。
+ブラウザで <http://localhost:3000> を開いてください。
 
 ### 注意
 
@@ -46,3 +48,28 @@ task dev
   - `src/components/chat/*`: メッセージ表示・送信欄
   - `src/components/sidebar/Sidebar.tsx`: 左サイドバー
   - `src/types/chat.ts`: 型定義
+
+---
+
+## 環境変数の管理（Compose ベース）
+
+本プロジェクトでは、`.env` の読み込みは Docker Compose で行います。
+
+- `.env.common`: 公開前提の共通設定（GitHub にコミット可）。
+- `.env.dev`: 開発者ローカルの上書き設定（Git 管理外）。
+- `.env.dev.sample`: `.env.dev` のサンプル。
+
+読み込みルール:
+
+- 開発（`docker-compose.dev.yml`）: `env_file: [.env.common, .env.dev]`（後者が上書き）。
+- ステージング/本番（`docker-compose.stg.yml` / `docker-compose.prod.yml`）: `env_file: [.env.common]`。
+
+ローカル手順（Compose 開発）:
+
+```bash
+# 開発者ごとに .env.dev を作成
+cp .env.dev.sample .env.dev
+
+# dev サービスを起動
+docker compose -f docker-compose.dev.yml up --build
+```
