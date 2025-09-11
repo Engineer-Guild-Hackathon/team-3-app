@@ -62,10 +62,9 @@ export default function ChatInput({ value, setValue, onSend, disabled }: Props) 
           </button>
         </div>
         <p className="mt-2 text-center text-xs text-black/50 dark:text-white/40">
-          モデルは接続されていません。UIのみのデモです。
+          Enterで送信・Shift+Enterで改行。応答は下に表示されます。
         </p>
       </div>
     </div>
   );
 }
-

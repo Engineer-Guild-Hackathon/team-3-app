@@ -33,8 +33,10 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files
+# Ignore all by default, but allow public/common samples
 .env*
-!.env.example
+!.env.common
+!.env.dev.example
 
 # vercel
 .vercel
