@@ -75,6 +75,50 @@ jobs:
             --settings WEBSITES_PORT=${{ env.CONTAINER_PORT }}
       # 参考: カスタムコンテナは WEBSITES_PORT 必須
 
+      # --- .env.example にあるキーを Secrets から注入（存在するもののみ設定） ---
+      # GitHub → Settings → Secrets and variables → Actions に以下を登録してください:
+      # - NEXTAUTH_SECRET, NEXTAUTH_URL
+      # - GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+      # - ALLOWED_EMAIL_DOMAIN, ALLOWED_EMAILS（任意）
+      - name: Apply App Settings from Secrets
+        shell: bash
+        env:
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          ALLOWED_EMAIL_DOMAIN: ${{ secrets.ALLOWED_EMAIL_DOMAIN }}
+          ALLOWED_EMAILS: ${{ secrets.ALLOWED_EMAILS }}
+        run: |
+          set -euo pipefail
+          declare -a SETTINGS
+          add_setting() {
+            local key="$1"; local val="$2"
+            if [ -n "${val}" ]; then
+              # 値が設定されているものだけを更新（空値で既存を消さない）
+              SETTINGS+=("${key}=${val}")
+            else
+              echo "::notice title=Secret not set::Skipping ${key} (not provided)"
+            fi
+          }
+
+          add_setting "NEXTAUTH_SECRET" "$NEXTAUTH_SECRET"
+          add_setting "NEXTAUTH_URL" "$NEXTAUTH_URL"
+          add_setting "GOOGLE_CLIENT_ID" "$GOOGLE_CLIENT_ID"
+          add_setting "GOOGLE_CLIENT_SECRET" "$GOOGLE_CLIENT_SECRET"
+          add_setting "ALLOWED_EMAIL_DOMAIN" "$ALLOWED_EMAIL_DOMAIN"
+          add_setting "ALLOWED_EMAILS" "$ALLOWED_EMAILS"
+
+          if [ ${#SETTINGS[@]} -eq 0 ]; then
+            echo "::warning title=No app settings applied::No matching Secrets were provided."
+            exit 0
+          fi
+
+          echo "Applying $${#SETTINGS[@]} app settings..."
+          az webapp config appsettings set \
+            -g "$AZURE_RESOURCE_GROUP" -n "$AZURE_WEBAPP_NAME" \
+            --settings "${SETTINGS[@]}"
+
       # --- Web App の使用イメージを更新（デプロイ） ---
       - name: Deploy to Web App (Container)
         uses: azure/webapps-deploy@v2
