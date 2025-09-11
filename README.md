@@ -25,6 +25,45 @@
 - 技術構成: Next.js (App Router) + React + Tailwind CSS
 - チャットUI: ChatGPT風のメイン画面を `src/app/page.tsx` で提供しています。
 
+### 認証（即席: Google + Auth.js/NextAuth）
+
+- 目的: 未ログインユーザーのアクセスを遮断し、ユーザー識別を可能にするための暫定措置。
+- 方式: next-auth v4 + Google プロバイダ。`/login` でログイン、ミドルウェアで保護。
+- 主なファイル:
+  - `src/auth.ts`: 認証設定（ドメイン制限は `ALLOWED_EMAIL_DOMAIN`）
+  - `src/app/api/auth/[...nextauth]/route.ts`: 認証ハンドラ
+  - `src/middleware.ts`: ルート保護（`/login` と `/api/auth` は除外）
+  - `src/app/login/page.tsx`: ログインページ（Google ボタン）
+  - `src/components/auth/UserMenu.tsx`: ヘッダーのユーザーメニュー（ログアウト）
+
+セットアップ:
+
+1) `.env` を作成（`.env.example` を参照）
+   - `.env.example` はリポジトリで追跡されるため、必要な環境変数の雛形として常に最新化します。
+
+```
+NEXTAUTH_SECRET=（ランダム文字列）
+NEXTAUTH_URL=http://localhost:3000
+GOOGLE_CLIENT_ID=（Google Cloud で取得）
+GOOGLE_CLIENT_SECRET=（Google Cloud で取得）
+# 任意: 指定ドメインのみ許可する場合
+# ALLOWED_EMAIL_DOMAIN=school.ac.jp
+# 任意: 指定メールのみ許可（カンマ区切り。設定時はこれが最優先）
+# ALLOWED_EMAILS=dev1@example.com,dev2@example.com
+```
+
+2) Google Cloud Console で OAuth クライアント（Web）を作成し、承認済みリダイレクト URI に以下を追加:
+
+```
+http://localhost:3000/api/auth/callback/google
+```
+
+3) 起動後、未ログインで `http://localhost:3000/` にアクセスすると `/login` へリダイレクトします。
+
+ログアウト:
+
+- 画面右上の「ログアウト」ボタンでサインアウトし、`/login` に戻ります。
+
 ### セットアップ
 
 ```bash
@@ -32,6 +71,8 @@ task dev
 ```
 
 ブラウザで <http://localhost:3000> を開いてください。
+
+開発用 Docker Compose は `.env` を読み込みます（`env_file`）。`NEXTAUTH_*` と `GOOGLE_*` を未設定の場合、認証関連のエンドポイントでエラーとなります。
 
 ### 注意
 

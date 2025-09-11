@@ -23,6 +23,8 @@
 # misc
 .DS_Store
 *.pem
+.eslintcache
+.cache/
 
 # debug
 npm-debug.log*
@@ -34,7 +36,7 @@ yarn-error.log*
 # Ignore all by default, but allow public/common samples
 .env*
 !.env.common
-!.env.dev.sample
+!.env.dev.example
 
 # vercel
 .vercel
@@ -42,3 +44,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+# cach
+.cache/

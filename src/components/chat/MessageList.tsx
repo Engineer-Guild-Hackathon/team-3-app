@@ -1,6 +1,7 @@
 "use client";
 
 import { ChatMessage } from "@/types/chat";
+
 import { MessageBubble } from "./MessageBubble";
 
 type Props = {

@@ -15,7 +15,15 @@ tasks:
     interactive: true
     cmds:
       - echo "Starting dev (Docker Compose)..."
-      - docker compose -f docker-compose.dev.yml up
+      - "docker compose -f docker-compose.dev.yml up --build"
+  
+  dev:nuke:
+    desc: Stop & remove containers + volumes (recreate node_modules)
+    cmds:
+      - echo "Nuking dev environment (containers + volumes)..."
+      - "docker compose -f docker-compose.dev.yml down -v"
+      - "docker compose -f docker-compose.dev.yml build --no-cache web"
+      - "docker compose -f docker-compose.dev.yml up"
 
   dev:down:
     desc: Stop dev containers and remove orphans
@@ -42,3 +50,110 @@ tasks:
       - task build:stg
       - task build:prod
 
+  # --- Local CI pre-check (Docker, Node image) ----------------------------
+  ci:local:
+    desc: Run local CI (npm ci → typecheck → optional lint/test → build)
+    # ローカルの権限問題を避けるため、Docker の Node イメージで実行する
+    cmds:
+      - echo "Running local CI pre-check..."
+      # 1) .next を常にクリーン（権限差異による EACCES を確実に回避）
+      - |
+        if [ -d .next ]; then
+          echo "Resetting .next cache..."
+          docker run --rm \
+            -v ${PWD}:/app \
+            -w /app \
+            node:22 \
+            bash -lc 'rm -rf .next'
+        fi
+      # 2) CI 本体（ホストと同一 UID/GID で実行し、権限問題を回避）
+      - mkdir -p .cache/npm
+      - |
+        docker run --rm \
+          -u $(id -u):$(id -g) \
+          -v ${PWD}:/app \
+          -v ${PWD}/.cache/npm:/cache/npm \
+          -w /app \
+          -e NEXT_TELEMETRY_DISABLED=1 \
+          -e NPM_CONFIG_CACHE=/cache/npm \
+          -e NPM_CONFIG_FUND=false \
+          -e NPM_CONFIG_AUDIT=false \
+          -e NPM_CONFIG_PROGRESS=false \
+          -e CI=1 \
+          node:22 \
+          bash -lc '
+            set -euo pipefail
+            echo "Step: npm ci"
+            npm ci --no-audit --no-fund
+            echo "Step: detect scripts"
+            if node -e "const s=(require(\"./package.json\").scripts)||{}; process.exit(Object.prototype.hasOwnProperty.call(s,\"lint\")?0:1)"; then lint=1; else lint=0; fi
+            if node -e "const s=(require(\"./package.json\").scripts)||{}; process.exit(Object.prototype.hasOwnProperty.call(s,\"typecheck\")?0:1)"; then typecheck=1; else typecheck=0; fi
+            if node -e "const s=(require(\"./package.json\").scripts)||{}; process.exit(Object.prototype.hasOwnProperty.call(s,\"test\")?0:1)"; then test=1; else test=0; fi
+            if [ "${lint:-0}" = "1" ]; then
+              echo "Step: npm run lint"
+              npm run -s lint
+            else
+              echo "Skip: lint (not defined)"
+            fi
+            if [ "${typecheck:-0}" = "1" ]; then
+              echo "Step: npm run typecheck"
+              npm run -s typecheck
+            else
+              echo "Skip: typecheck (not defined)"
+            fi
+            if [ "${test:-0}" = "1" ]; then
+              echo "Step: npm test"
+              npm test --silent
+            else
+              echo "Skip: test (not defined)"
+            fi
+            echo "Step: npm run build"
+            npm run -s build
+          '
+
+  # さらに高速化（型チェックを Next.js の build に委譲）
+  ci:local:fast:
+    desc: Run local CI fast (cache npm, skip standalone typecheck)
+    cmds:
+      - echo "Running local CI fast..."
+      - |
+        if [ -d .next ]; then
+          echo "Resetting .next cache..."
+          docker run --rm -v ${PWD}:/app -w /app node:22 bash -lc 'rm -rf .next'
+        fi
+      - mkdir -p .cache/npm
+      - |
+        docker run --rm \
+          -u $(id -u):$(id -g) \
+          -v ${PWD}:/app \
+          -v ${PWD}/.cache/npm:/cache/npm \
+          -w /app \
+          -e NEXT_TELEMETRY_DISABLED=1 \
+          -e NPM_CONFIG_CACHE=/cache/npm \
+          -e NPM_CONFIG_FUND=false \
+          -e NPM_CONFIG_AUDIT=false \
+          -e NPM_CONFIG_PROGRESS=false \
+          -e CI=1 \
+          node:22 \
+          bash -lc '
+            set -euo pipefail
+            echo "Step: npm install (fast)"
+            npm install --no-audit --no-fund
+            echo "Step: detect scripts"
+            if node -e "const s=(require(\"./package.json\").scripts)||{}; process.exit(Object.prototype.hasOwnProperty.call(s,\"lint\")?0:1)"; then lint=1; else lint=0; fi
+            if node -e "const s=(require(\"./package.json\").scripts)||{}; process.exit(Object.prototype.hasOwnProperty.call(s,\"test\")?0:1)"; then test=1; else test=0; fi
+            if [ "${lint:-0}" = "1" ]; then
+              echo "Step: npm run lint"
+              npm run -s lint
+            else
+              echo "Skip: lint (not defined)"
+            fi
+            if [ "${test:-0}" = "1" ]; then
+              echo "Step: npm test"
+              npm test --silent
+            else
+              echo "Skip: test (not defined)"
+            fi
+            echo "Step: npm run build (includes TS check)"
+            npm run -s build
+          '

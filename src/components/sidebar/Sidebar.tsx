@@ -1,8 +1,9 @@
 "use client";
 
-import { ChatSession } from "@/types/chat";
 import Link from "next/link";
 import { useState } from "react";
+
+import { ChatSession } from "@/types/chat";
 
 type Props = {
   sessions: ChatSession[];
@@ -18,7 +19,7 @@ type Props = {
 /**
  * 左サイドバー（新規チャット + 履歴）
  */
-export default function Sidebar({ sessions, onNewChat, onSelectChat, activeId, onRename, onDelete, collapsed, onToggle }: Props) {
+export default function Sidebar({ sessions, onNewChat, activeId, onRename, onDelete, collapsed, onToggle }: Props) {
   // メニューとインライン編集用の状態（日本語コメント）
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -30,13 +31,18 @@ export default function Sidebar({ sessions, onNewChat, onSelectChat, activeId, o
       style={{ width: collapsed ? 0 : 288, overflow: "hidden" }}
       aria-hidden={collapsed}
     >
+      {/* 上段: プロフィール誘導 + 折りたたみボタン */}
       <div className="p-3 flex items-center justify-between gap-2">
-        <button
-          onClick={onNewChat}
-          className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-white/70 dark:bg-white/10 border border-black/10 dark:border-white/10 px-3 py-2 text-sm font-medium hover:bg-white/90 dark:hover:bg-white/15"
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 rounded-xl border border-black/10 dark:border-white/10 px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10"
+          title="プロフィール"
         >
-          + 新しいチャット
-        </button>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="size-4">
+            <path fillRule="evenodd" d="M12 2.25a5.25 5.25 0 0 0-5.25 5.25v.75a5.25 5.25 0 1 0 10.5 0v-.75A5.25 5.25 0 0 0 12 2.25Zm-8.25 18a8.25 8.25 0 0 1 16.5 0 .75.75 0 0 1-.75.75H4.5a.75.75 0 0 1-.75-.75Z" clipRule="evenodd" />
+          </svg>
+          プロフィール
+        </Link>
         <button
           onClick={onToggle}
           aria-label="サイドバーを閉じる"
@@ -48,7 +54,25 @@ export default function Sidebar({ sessions, onNewChat, onSelectChat, activeId, o
           </svg>
         </button>
       </div>
-      <div className="px-3 pb-3 text-xs font-medium text-black/50 dark:text-white/50">履歴</div>
+
+      {/* 中段: 新しいチャット */}
+      <div
+        className="px-3 pt-3 pb-3 text-xs font-medium text-black/50 dark:text-white/50"
+        suppressHydrationWarning
+      >
+        チャット作成
+      </div>
+      <div className="px-3">
+        <button
+          onClick={onNewChat}
+          className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-white/70 dark:bg-white/10 border border-black/10 dark:border-white/10 px-3 py-2 text-sm font-medium hover:bg-white/90 dark:hover:bg-white/15"
+        >
+          + 新しいチャット
+        </button>
+      </div>
+
+      {/* ラベル: 履歴 */}
+      <div className="px-3 pt-3 pb-3 text-xs font-medium text-black/50 dark:text-white/50">履歴</div>
       <div className="flex-1 overflow-y-auto px-2 pb-4">
         {sessions.length === 0 && (
           <div className="mx-2 text-xs text-black/40 dark:text-white/40">

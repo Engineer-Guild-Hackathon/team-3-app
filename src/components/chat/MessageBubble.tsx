@@ -1,7 +1,8 @@
 "use client";
 
-import { ChatMessage } from "@/types/chat";
 import { memo } from "react";
+
+import { ChatMessage } from "@/types/chat";
 
 type Props = {
   message: ChatMessage;
