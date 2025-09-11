@@ -15,7 +15,15 @@ tasks:
     interactive: true
     cmds:
       - echo "Starting dev (Docker Compose)..."
-      - docker compose -f docker-compose.dev.yml up
+      - "docker compose -f docker-compose.dev.yml up --build"
+  
+  dev:nuke:
+    desc: Stop & remove containers + volumes (recreate node_modules)
+    cmds:
+      - echo "Nuking dev environment (containers + volumes)..."
+      - "docker compose -f docker-compose.dev.yml down -v"
+      - "docker compose -f docker-compose.dev.yml build --no-cache web"
+      - "docker compose -f docker-compose.dev.yml up"
 
   dev:down:
     desc: Stop dev containers and remove orphans
