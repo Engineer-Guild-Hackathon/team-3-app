@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
-import { runChatWithTools, ChatMessage } from "@/lib/pipeline";
+import { runChatWithTools } from "@/lib/pipeline";
+import type { LlmMessage } from "@/types/llm";
+import { getLogger } from "@/lib/logger";
 
 // App Router の Route Handlers 仕様（GET/POST など）に従う
 // 参考: nextjs docs route handlers :contentReference[oaicite:6]{index=6}
 
 export async function POST(req: Request) {
   try {
+    const log = getLogger("api:chat").child({ reqId: (globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)) });
     const body = await req.json().catch(() => ({}));
     // クライアントから渡されたメッセージがあれば使い、無ければデフォルト
-    const messages: ChatMessage[] =
+    const messages: LlmMessage[] =
       body?.messages ??
       ([
         { role: "system", content: "あなたは役に立つアシスタントです。" },
@@ -17,16 +20,19 @@ export async function POST(req: Request) {
           content:
             "「(2+3)*4/5 の計算結果」と「Asia/Tokyo の現在時刻」を教えて。",
         },
-      ] as ChatMessage[]);
+      ] as LlmMessage[]);
 
+    log.info({ msg: "request", count: (messages as LlmMessage[]).length });
     const result = await runChatWithTools(messages);
+    log.info({ msg: "response", keys: Object.keys(result.json).length });
 
     return NextResponse.json(
       { ok: true, result },
       { status: 200 }
     );
   } catch (e: any) {
-    console.error("[ERROR] /api/chat:", e);
+    const log = getLogger("api:chat");
+    log.error({ msg: "failed", err: String(e?.message ?? e) });
     return NextResponse.json(
       { ok: false, error: String(e?.message ?? e) },
       { status: 500 }
