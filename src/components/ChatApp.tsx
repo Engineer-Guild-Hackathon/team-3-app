@@ -8,6 +8,8 @@ import type { ChatMessage, ChatSession } from "@/types/chat";
 import ChatInput from "./chat/ChatInput";
 import MessageList from "./chat/MessageList";
 import Sidebar from "./sidebar/Sidebar";
+import ProfilePane from "@/components/ProfilePane";
+import UserMenu from "@/components/auth/UserMenu";
 
 // UUID生成（衝突リスクが非常に低い）
 const rid = () => crypto.randomUUID();
@@ -22,9 +24,9 @@ const UI_SIDEBAR_OPEN_KEY = "ui:sidebar:open:v1";
  * - ローカルストレージに会話履歴を保存（セッション簡易実装）
  * - バックエンド接続は未実装で、ダミー応答を返す
  */
-type Props = { initialId?: string };
+type Props = { initialId?: string; showProfileOnEmpty?: boolean };
 
-export default function ChatApp({ initialId }: Props) {
+export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props) {
   const router = useRouter();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeId, setActiveId] = useState<string | null>(initialId ?? null);
@@ -61,7 +63,12 @@ export default function ChatApp({ initialId }: Props) {
           router.replace("/");
           redirected = true;
         } else {
-          setActiveId((hasInitial ? initialId : parsed[0]?.id) ?? null);
+          // /（プロフィール優先表示）の場合はアクティブを持たない
+          setActiveId(
+            hasInitial
+              ? initialId
+              : (showProfileOnEmpty ? null : (parsed[0]?.id ?? null))
+          );
         }
       } else {
         if (initialId) {
@@ -71,14 +78,15 @@ export default function ChatApp({ initialId }: Props) {
           const first = createSession();
           const next = [first];
           setSessions(next);
-          setActiveId(first.id);
+          // /（プロフィール優先表示）の場合はアクティブを持たない
+          setActiveId(showProfileOnEmpty ? null : first.id);
           try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
         }
       }
     } catch {}
     if (!redirected) setBootstrapped(true);
     // リダイレクト時は別ページに遷移するため描画はスキップ
-  }, [createSession, initialId, router]);
+  }, [createSession, initialId, router, showProfileOnEmpty]);
 
   // ルートの初期IDが変わった場合の追随（/chats/:id 遷移）
   useEffect(() => {
@@ -167,6 +175,8 @@ export default function ChatApp({ initialId }: Props) {
     return null;
   }
 
+  const showProfile = showProfileOnEmpty && (!active || active.messages.length === 0);
+
   return (
     <div className="flex h-screen">
       <Sidebar
@@ -223,29 +233,33 @@ export default function ChatApp({ initialId }: Props) {
                 </svg>
               </button>
             )}
-            <div className="font-semibold truncate">Chat</div>
+            <div className="font-semibold truncate">{showProfile ? "Profile" : "Chat"}</div>
           </div>
-          <div className="text-xs text-black/50 dark:text-white/50">UI Demo</div>
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-black/50 dark:text-white/50 hidden sm:block">UI Demo</div>
+            <UserMenu />
+          </div>
         </div>
 
         {/* 本文 */}
-        {active && active.messages.length > 0 ? (
+        {showProfile ? (
+          <ProfilePane />
+        ) : active && active.messages.length > 0 ? (
           <MessageList messages={active.messages} />
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <div className="mx-auto w-full max-w-3xl px-6 md:px-8">
               <div className="text-center">
                 <h1 className="text-2xl md:text-3xl font-semibold mb-3">新しくチャットを作成</h1>
-                <p className="text-sm text-black/60 dark:text-white/60 mb-6">
-                  この機能はいずれなくなります。
-                </p>
               </div>
             </div>
           </div>
         )}
 
         {/* 入力欄 */}
-        <ChatInput value={input} setValue={setInput} onSend={handleSend} disabled={sending} />
+        {!showProfile && (
+          <ChatInput value={input} setValue={setInput} onSend={handleSend} disabled={sending} />
+        )}
       </main>
     </div>
   );

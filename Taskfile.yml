@@ -15,7 +15,15 @@ tasks:
     interactive: true
     cmds:
       - echo "Starting dev (Docker Compose)..."
-      - docker compose -f docker-compose.dev.yml up
+      - "docker compose -f docker-compose.dev.yml up --build"
+  
+  dev:nuke:
+    desc: Stop & remove containers + volumes (recreate node_modules)
+    cmds:
+      - echo "Nuking dev environment (containers + volumes)..."
+      - "docker compose -f docker-compose.dev.yml down -v"
+      - "docker compose -f docker-compose.dev.yml build --no-cache web"
+      - "docker compose -f docker-compose.dev.yml up"
 
   dev:down:
     desc: Stop dev containers and remove orphans
@@ -48,17 +56,15 @@ tasks:
     # ローカルの権限問題を避けるため、Docker の Node イメージで実行する
     cmds:
       - echo "Running local CI pre-check..."
-      # 1) .next の権限を確認し、書き込み不可の場合のみクリーン
+      # 1) .next を常にクリーン（権限差異による EACCES を確実に回避）
       - |
-        if [ -d .next ] && [ ! -w .next ]; then
-          echo ".next has permission mismatch. Resetting cache..."
+        if [ -d .next ]; then
+          echo "Resetting .next cache..."
           docker run --rm \
             -v ${PWD}:/app \
             -w /app \
             node:22 \
             bash -lc 'rm -rf .next'
-        else
-          echo ".next is writable. Keeping cache."
         fi
       # 2) CI 本体（ホストと同一 UID/GID で実行し、権限問題を回避）
       - mkdir -p .cache/npm
@@ -111,11 +117,9 @@ tasks:
     cmds:
       - echo "Running local CI fast..."
       - |
-        if [ -d .next ] && [ ! -w .next ]; then
-          echo ".next has permission mismatch. Resetting cache..."
+        if [ -d .next ]; then
+          echo "Resetting .next cache..."
           docker run --rm -v ${PWD}:/app -w /app node:22 bash -lc 'rm -rf .next'
-        else
-          echo ".next is writable. Keeping cache."
         fi
       - mkdir -p .cache/npm
       - |
