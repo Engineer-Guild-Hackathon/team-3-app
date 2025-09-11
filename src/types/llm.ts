@@ -16,3 +16,8 @@ export type JsonResult<T extends Record<string, unknown> = Record<string, unknow
   text: string; // UI 表示向けの整形文字列
 };
 
+// ラン実行オプション（会話履歴をセッション単位で保持）
+export type RunChatOptions = JsonModeOptions & {
+  sessionId?: string; // セッションID（未指定時は "default"）
+  maxHistory?: number; // 直近のメッセージ件数上限（デフォルト 20）
+};

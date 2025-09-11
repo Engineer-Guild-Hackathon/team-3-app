@@ -1,7 +1,15 @@
 import { getAOAI } from "./openai";
 import { getLogger } from "./logger";
 import { getPrompt, DEFAULT_JSON_MODE_SYSTEM } from "./prompts";
-import type { LlmMessage, JsonModeOptions, JsonResult } from "@/types/llm";
+import type { LlmMessage, JsonResult, RunChatOptions } from "@/types/llm";
+
+// 簡易会話メモリ（サーバプロセス内、セッションID単位）
+const conversationStore = new Map<string, LlmMessage[]>();
+
+function clampHistory(arr: LlmMessage[], max: number): LlmMessage[] {
+  if (arr.length <= max) return arr;
+  return arr.slice(arr.length - max);
+}
 
 /**
  * Chat補完（最終動作のみ）
@@ -10,10 +18,12 @@ import type { LlmMessage, JsonModeOptions, JsonResult } from "@/types/llm";
  */
 export async function runChatWithTools(
   initialMessages: LlmMessage[],
-  options: JsonModeOptions = { injectJsonSystemPrompt: true }
+  options: RunChatOptions = { injectJsonSystemPrompt: true }
 ): Promise<JsonResult> {
   const log = getLogger("pipeline");
-  log.info({ msg: "start", mode: "json", messageCount: initialMessages.length });
+  const sessionId = options.sessionId ?? "default";
+  const maxHistory = Math.max(1, options.maxHistory ?? 20);
+  log.info({ msg: "start", mode: "json", messageCount: initialMessages.length, sessionId, maxHistory });
 
   const model = process.env.AZURE_OPENAI_DEPLOYMENT!; // デプロイメント名
 
@@ -26,9 +36,18 @@ export async function runChatWithTools(
       }
     : null;
 
-  const messages: LlmMessage[] = jsonSystem
-    ? [jsonSystem, ...initialMessages]
-    : [...initialMessages];
+  // 入力メッセージをそのままセッション履歴へ反映し、上限でクリップ
+  const clientHistory = clampHistory([...initialMessages], maxHistory);
+  conversationStore.set(sessionId, clientHistory);
+
+  // 送信用メッセージ = （JSONモード用システム）+（保持中の履歴）
+  const history = conversationStore.get(sessionId) ?? [];
+  const messages: LlmMessage[] = jsonSystem ? [jsonSystem, ...history] : [...history];
+
+  // Azure OpenAI JSON モード要件：メッセージ内に 'json' を含める必要があるため保険をかける
+  if (!messages.some((m) => m?.content?.toLowerCase?.().includes("json"))) {
+    messages.unshift({ role: "system", content: "json" });
+  }
 
   // 単発の補完（JSONモード）
   const resp = await getAOAI().chat.completions.create({
@@ -55,6 +74,10 @@ export async function runChatWithTools(
   }
 
   const text = JSON.stringify(parsed, null, 2);
-  log.info({ msg: "final", ok: true, model, hasSystem: !!jsonSystem });
+  // 応答（assistant）を履歴へ追記し、上限でクリップ
+  const after = clampHistory([...(conversationStore.get(sessionId) ?? []), { role: "assistant", content: raw }], maxHistory);
+  conversationStore.set(sessionId, after);
+
+  log.info({ msg: "final", ok: true, model, hasSystem: !!jsonSystem, sessionId, historySize: after.length });
   return { json: parsed, text };
 }

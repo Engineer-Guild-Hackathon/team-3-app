@@ -153,8 +153,9 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
     setSending(true);
     try {
       const current = nextSessions.find((s) => s.id === active.id)!;
-      // API へ渡す最小メッセージ形式に変換
+      // API へ渡す最小メッセージ形式に変換（セッションIDを付与）
       const payload = {
+        sessionId: current.id,
         messages: current.messages.map((m) => ({ role: m.role, content: m.content })),
       };
 

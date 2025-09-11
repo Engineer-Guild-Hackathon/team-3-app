@@ -1,11 +1,12 @@
-Return only a valid JSON object.
+Return only a valid json object.
 
 Constraints:
 - No code fences, no markdown, no prose outside the JSON.
-- Always emit syntactically valid JSON (RFC 8259).
+- Always emit syntactically valid json (RFC 8259).
 - Use stable keys; you MAY include additional forward-compatible fields.
 - Do not include explanations or commentary.
 
+You must respond in json only.
+
 Example shape (illustrative only):
 {"summary":"...","data":{}}
-

@@ -11,6 +11,7 @@ export async function POST(req: Request) {
   try {
     const log = getLogger("api:chat").child({ reqId: (globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)) });
     const body = await req.json().catch(() => ({}));
+    const sessionId: string = String(body?.sessionId ?? "default");
     // クライアントから渡されたメッセージがあれば使い、無ければデフォルト
     const messages: LlmMessage[] = body?.messages ?? ([
       { role: "system", content: await getPrompt("system/base-ja", DEFAULT_SYSTEM_BASE_JA) },
@@ -20,9 +21,9 @@ export async function POST(req: Request) {
       },
     ] as LlmMessage[]);
 
-    log.info({ msg: "request", count: (messages as LlmMessage[]).length });
-    const result = await runChatWithTools(messages);
-    log.info({ msg: "response", keys: Object.keys(result.json).length });
+    log.info({ msg: "request", count: (messages as LlmMessage[]).length, sessionId });
+    const result = await runChatWithTools(messages, { sessionId });
+    log.info({ msg: "response", keys: Object.keys(result.json).length, sessionId });
 
     return NextResponse.json(
       { ok: true, result },
