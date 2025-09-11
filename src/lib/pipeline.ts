@@ -1,5 +1,6 @@
 import { getAOAI } from "./openai";
 import { getLogger } from "./logger";
+import { getPrompt, DEFAULT_JSON_MODE_SYSTEM } from "./prompts";
 import type { LlmMessage, JsonModeOptions, JsonResult } from "@/types/llm";
 
 /**
@@ -21,8 +22,7 @@ export async function runChatWithTools(
   const jsonSystem: LlmMessage | null = options.injectJsonSystemPrompt
     ? {
         role: "system",
-        content:
-          "Return only a valid JSON object. No code fences, no extra text. Keys may include additional, future fields (extensible).",
+        content: await getPrompt("system/json-mode", DEFAULT_JSON_MODE_SYSTEM),
       }
     : null;
 
