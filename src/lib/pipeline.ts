@@ -1,4 +1,4 @@
-import { aoai } from "./openai";
+import { getAOAI } from "./openai";
 
 // Next.jsから受け取るメッセージ型（最低限）
 export type ChatMessage = { role: "system" | "user" | "assistant" | "tool"; content: string; tool_call_id?: string };
@@ -9,7 +9,7 @@ export async function runChatWithTools(initialMessages: ChatMessage[]) {
   const model = process.env.AZURE_OPENAI_DEPLOYMENT!; // デプロイメント名
 
   // ツール呼び出しは行わず、単発の補完のみ実行
-  const resp = await aoai.chat.completions.create({
+  const resp = await getAOAI().chat.completions.create({
     model,
     messages,
   });
