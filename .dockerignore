@@ -5,3 +5,4 @@ out
 .vscode
 .DS_Store
 .env*
+SPAR_UI

@@ -35,16 +35,16 @@ jobs:
         run: npm ci
 
       # ESLint（スクリプトが無ければ無視）
-      - name: Run ESLint
+      - name: Run ESLint (src only)
         env:
           NEXT_PRIVATE_SKIP_ENV_LOADING: '1'
-        run: npm run -s lint --if-present
+        run: npx eslint src --max-warnings=0
 
       # プロジェクト標準の型チェック（lint 相当の静的検査）
-      - name: Run Type Check
+      - name: Run Type Check (src only)
         env:
           NEXT_PRIVATE_SKIP_ENV_LOADING: '1'
-        run: npm run -s typecheck
+        run: npx tsc -p tsconfig.typecheck.json
 
   test:
     name: Test (if present)
