@@ -8,7 +8,7 @@ import type { ConversationTurn, RunChatInput } from "@/types/llm";
 
 import SparSidebar from "./spar/ChatSidebar";
 import SparChatbot from "./spar/Chatbot";
-import ProfilePane from "@/components/ProfilePane";
+import SparProfile from "./spar/Profile";
 import UserMenu from "@/components/auth/UserMenu";
 
 // UUID生成（衝突リスクが非常に低い）
@@ -403,12 +403,19 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
           }}
           isExpanded={sidebarOpen}
           onToggleExpanded={() => setSidebarOpen((v) => !v)}
+          onNavigateToProfile={() => router.push('/')}
         />
 
         <main className="flex-1 min-w-0 h-full">
           {/* 本文 */}
           {showProfile ? (
-            <ProfilePane />
+            <SparProfile
+              chatSessions={sessions}
+              currentChatId={activeId}
+              onNavigateToChat={handleNewChat}
+              onSelectChat={(id) => { setActiveId(id); router.push(`/chats/${id}`); }}
+              onLogout={() => router.push('/login')}
+            />
           ) : notFound ? (
             <div className="w-full h-full flex items-center justify-center">
               <div className="mx-auto w-full max-w-3xl px-6 md:px-8">
