@@ -1,23 +1,21 @@
-# team3 teamname
-
-このリポジトリはハッカソン提出用の雛形です。以下の項目をすべて埋めてください。
+# team3 devNeko
 
 ---
 
 ## チーム情報
 
 - チーム番号: 3
-- チーム名: （ここに記入）
-- プロダクト名: （ここに記入）
+- チーム名: devNeko
+- プロダクト名:
 - メンバー: 横内佑哉，渡瀬友裕
 
 ---
 
 ## デモ　/ プレゼン資料
 
-- デモURL:
-- プレゼンURL：
-- プロダクトURL: https://webappforhackathon-b6guerb9bcgee4h2.centralus-01.azurewebsites.net/
+- デモURL: <https://webappforhackathon-b6guerb9bcgee4h2.centralus-01.azurewebsites.net/>
+- プレゼンURL: <https://www.canva.com/design/DAGyrv42Baw/a7s9EgAQwW1ddD_AUlHuyg/view?utm_content=DAGyrv42Baw&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=h4fcf06890b>
+- プロダクトURL: <https://webappforhackathon-b6guerb9bcgee4h2.centralus-01.azurewebsites.net/>
 
 ---
 
@@ -42,7 +40,7 @@
 1) `.env` を作成（`.env.example` を参照）
    - `.env.example` はリポジトリで追跡されるため、必要な環境変数の雛形として常に最新化します。
 
-```
+```text
 NEXTAUTH_SECRET=（ランダム文字列）
 NEXTAUTH_URL=http://localhost:3000
 GOOGLE_CLIENT_ID=（Google Cloud で取得）
@@ -55,7 +53,7 @@ GOOGLE_CLIENT_SECRET=（Google Cloud で取得）
 
 2) Google Cloud Console で OAuth クライアント（Web）を作成し、承認済みリダイレクト URI に以下を追加:
 
-```
+```text
 http://localhost:3000/api/auth/callback/google
 ```
 
