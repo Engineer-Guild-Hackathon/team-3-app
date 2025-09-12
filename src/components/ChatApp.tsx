@@ -17,6 +17,7 @@ const rid = () => crypto.randomUUID();
 
 // LocalStorage キー
 const STORAGE_KEY = "chat:sessions:v1";
+const AUTO_INTRO_FLAG_PREFIX = "chat:auto-intro:"; // localStorage フラグ（新規作成直後の自動送信許可）
 const UI_SIDEBAR_OPEN_KEY = "ui:sidebar:open:v1";
 
 /**
@@ -33,7 +34,13 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   const [activeId, setActiveId] = useState<string | null>(initialId ?? null);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [bootIntroDone, setBootIntroDone] = useState(false); // 初回LLM応答の自動生成フラグ
+  const [bootIntroDone, setBootIntroDone] = useState(false); // 初回LLM応答の自動生成フラグ（互換残し）
+  // 新規作成直後のチャットにのみ自動イントロを許可（既存チャットを開いた際の誤送信を防止）
+  const [pendingAutoIntroId, setPendingAutoIntroId] = useState<string | null>(null);
+  // チャットごとの自動イントロ送信済みフラグ
+  const autoIntroSent = useRef<Record<string, boolean>>({});
+  // 自動イントロ送信の同時実行防止（開発時の StrictMode 二重実行も抑止）
+  const autoIntroInFlight = useRef<Record<string, boolean>>({});
   // サイドバーのUI状態（日本語コメント）
   const [sidebarOpen, setSidebarOpen] = useState(true);
   // APIからの読み込み済みメッセージ管理（重複フェッチ防止）
@@ -95,6 +102,11 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
               ? initialId
               : (showProfileOnEmpty ? null : (parsed[0]?.id ?? null))
           );
+          // 新規作成直後の自動イントロフラグ（ルート遷移跨ぎのためLSで受け渡し）
+          if (initialId) {
+            const flag = localStorage.getItem(AUTO_INTRO_FLAG_PREFIX + initialId);
+            if (flag === "1") setPendingAutoIntroId(initialId);
+          }
         }
       } else {
         if (initialId) {
@@ -184,6 +196,8 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
       const next = [s, ...sessions];
       setSessions(next);
       setActiveId(s.id);
+      try { localStorage.setItem(AUTO_INTRO_FLAG_PREFIX + s.id, "1"); } catch {}
+      setPendingAutoIntroId(s.id);
       setNotFound(false);
       persist(next);
       setInput("");
@@ -193,6 +207,8 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
       const next = [newSession, ...sessions];
       setSessions(next);
       setActiveId(newSession.id);
+      try { localStorage.setItem(AUTO_INTRO_FLAG_PREFIX + newSession.id, "1"); } catch {}
+      setPendingAutoIntroId(newSession.id);
       setNotFound(false);
       persist(next);
       setInput("");
@@ -201,15 +217,16 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   };
 
   // 送信処理（API接続版）
-  const handleSend = async () => {
+  const handleSend = async (textArg?: string) => {
+    const text = (textArg ?? input).trim();
     // ガード（ended の場合は送信不可）
-    if (!active || !input.trim() || sending || active.status === 'ended') return;
+    if (!active || !text || sending || active.status === 'ended') return;
 
     // 1) ユーザーメッセージをセッションに反映
     const userMsg: ChatMessage = {
       id: rid(),
       role: "user",
-      content: input.trim(),
+      content: text,
       createdAt: Date.now(),
     };
 
@@ -286,14 +303,25 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         content: String(data.result?.answer ?? data.result?.text ?? ""),
         createdAt: Date.now(),
       };
+      const assistantPersisted = (data.meta?.assistantPersisted ?? data.result?.meta?.assistantPersisted) !== false;
+      const lastLocal = nextSessions.find((s) => s.id === active.id)?.messages?.at(-1);
+      const lastLocalIsAssistant = lastLocal?.role === 'assistant';
       const ended = (data.result?.status ?? 0) === -1 ? false : true;
-      const withAssistant = nextSessions.map((s) =>
-        s.id === active.id
-          ? { ...s, status: ended ? 'ended' : (s.status ?? 'in_progress'), messages: [...s.messages, assistant], updatedAt: Date.now() }
-          : s
-      );
-      setSessions(withAssistant);
-      persist(withAssistant);
+      // DB 側で破棄された場合でも、ローカルの直近が assistant でなければ UI は表示する
+      if ((assistantPersisted || !lastLocalIsAssistant) && assistant.content) {
+        const withAssistant = nextSessions.map((s) =>
+          s.id === active.id
+            ? { ...s, status: ended ? 'ended' : (s.status ?? 'in_progress'), messages: [...s.messages, assistant], updatedAt: Date.now() }
+            : s
+        );
+        setSessions(withAssistant);
+        persist(withAssistant);
+      } else {
+        // 破棄された場合でもステータスのみ更新（必要なら）
+        const onlyStatus = nextSessions.map((s) => s.id === active.id ? { ...s, status: ended ? 'ended' : (s.status ?? 'in_progress'), updatedAt: Date.now() } : s);
+        setSessions(onlyStatus);
+        persist(onlyStatus);
+      }
       loadedMessages.current[active.id] = true; // 以後API再フェッチ不要
     } catch (e: any) {
       // エラー時はメッセージとして表示
@@ -344,11 +372,19 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
     run();
   }, [activeId, fetchJson, sessions]);
 
-  // 新規/空チャットのとき最初に LLM 応答を自動生成（subject=物理, theme=加速度）
+  // 新規作成直後のみ最初に LLM 応答を自動生成（既存チャットを開いたときは送信しない）
   useEffect(() => {
     const autoIntro = async () => {
-      if (!active || sending || bootIntroDone) return;
-      if (active.messages.length > 0) return;
+      if (!active || sending) return;
+      if (!pendingAutoIntroId || pendingAutoIntroId !== active.id) return;
+      if (autoIntroSent.current[active.id]) return;
+      if (autoIntroInFlight.current[active.id]) return;
+      // 既に assistant が最後のメッセージなら送信しない
+      if (active.messages.length > 0) {
+        const last = active.messages[active.messages.length - 1];
+        if (last?.role === 'assistant') return;
+      }
+      autoIntroInFlight.current[active.id] = true; // ここでロック
       setSending(true);
       try {
         const chatId = (() => {
@@ -367,21 +403,34 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data?.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
         const assistant: ChatMessage = { id: rid(), role: "assistant", content: String(data.result?.answer ?? data.result?.text ?? ""), createdAt: Date.now() };
+        const assistantPersisted = (data.meta?.assistantPersisted ?? data.result?.meta?.assistantPersisted) !== false;
         setSessions((prev) => {
           const ended = (data.result?.status ?? 0) === -1 ? false : true;
-          const next = prev.map((s) => s.id === active.id ? { ...s, status: ended ? 'ended' : (s.status ?? 'in_progress'), messages: [...s.messages, assistant], updatedAt: Date.now(), title: s.title === "新しいチャット" && assistant.content ? assistant.content.slice(0, 24) : s.title } : s);
+          const next = prev.map((s) => {
+            if (s.id !== active.id) return s;
+            const base = { ...s, status: ended ? 'ended' : (s.status ?? 'in_progress'), updatedAt: Date.now() } as ChatSession;
+            const lastLocal2 = s.messages.at(-1);
+            const lastLocalIsAssistant2 = lastLocal2?.role === 'assistant';
+            if ((assistantPersisted || !lastLocalIsAssistant2) && assistant.content) {
+              return { ...base, messages: [...s.messages, assistant], title: s.title === "新しいチャット" && assistant.content ? assistant.content.slice(0, 24) : s.title };
+            }
+            return base;
+          });
           try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
           return next;
         });
-        setBootIntroDone(true);
+        autoIntroSent.current[active.id] = true;
+        try { localStorage.removeItem(AUTO_INTRO_FLAG_PREFIX + active.id); } catch {}
+        setPendingAutoIntroId(null);
       } catch (_) {
         // 失敗時は黙ってスキップ
       } finally {
+        delete autoIntroInFlight.current[active.id];
         setSending(false);
       }
     };
     autoIntro();
-  }, [active, sending, bootIntroDone]);
+  }, [active, sending, pendingAutoIntroId]);
 
   // 予備：提案カードの選択ハンドラ（未使用）
 
@@ -444,7 +493,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
               isLoading={sending}
               hideInput={active?.status === 'ended'}
               inputDisabled={sending}
-              onSendMessage={(text) => { setInput(text); handleSend(); }}
+              onSendMessage={(text) => { handleSend(text); }}
             />
           )}
         </main>

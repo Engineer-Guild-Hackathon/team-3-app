@@ -35,13 +35,12 @@ export default function ChatInput({ onSendMessage, disabled }: Props) {
   const handleCompositionStart = () => setIsComposing(true);
   const handleCompositionEnd = () => setIsComposing(false);
 
-  // Auto-resize textarea
+  // Auto-resize textarea（高さを一旦 auto にして scrollHeight を反映）
   useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
-    const baseHeight = 56;
-    ta.style.height = `${baseHeight}px`;
-    const maxHeight = 120;
+    ta.style.height = 'auto';
+    const maxHeight = 120; // px
     const newHeight = Math.min(ta.scrollHeight, maxHeight);
     ta.style.height = `${newHeight}px`;
   }, [message]);
@@ -59,7 +58,7 @@ export default function ChatInput({ onSendMessage, disabled }: Props) {
           placeholder="Type a message... (Shift+Enter for new line)"
           disabled={disabled}
           className="w-full px-6 py-4 pr-14 rounded-3xl backdrop-blur-xl bg-white/10 border border-white/20 placeholder-gray-500 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/30 focus:bg-white/15 transition-all duration-200 shadow-lg shadow-black/5 resize-none overflow-hidden disabled:opacity-50"
-          style={{ lineHeight: '1.5', minHeight: '56px', maxHeight: '120px', height: '56px', fontFamily: 'inherit' }}
+          style={{ lineHeight: '1.5', minHeight: '56px', maxHeight: '120px', fontFamily: 'inherit' }}
         />
         <motion.button
           type="submit"
