@@ -204,3 +204,20 @@ tasks:
             echo "Step: npm run build (includes TS check)"
             npm run -s build
           '
+
+  # --- Local CI for database (Compose + Drizzle) --------------------------
+  ci:db:
+    desc: Run local DB CI (compose up -> migrate -> check)
+    cmds:
+      - echo "Starting compose services"
+      - docker compose -f docker-compose.dev.yml up -d --build
+      - echo "Running migrations"
+      - docker compose -f docker-compose.dev.yml run --rm web sh -c 'npm run -s db:migrate'
+      - echo "Running DB checks"
+      - task db:check
+
+  ci:all:
+    desc: Run local CI for app and DB
+    cmds:
+      - task ci:local
+      - task ci:db
