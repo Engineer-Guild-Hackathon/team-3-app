@@ -28,7 +28,8 @@ export function isRunChatInput(val: unknown): val is RunChatInput {
   const themeOk = typeof o.theme === "string";
   const historyOk = Array.isArray(o.history) && o.history.every(isConversationTurn);
   const descOk = o.description == null || typeof o.description === "string";
-  return idOk && subjectOk && themeOk && historyOk && descOk;
+  const clientIdOk = o.clientSessionId == null || typeof o.clientSessionId === "string";
+  return idOk && subjectOk && themeOk && historyOk && descOk && clientIdOk;
 }
 
 /**

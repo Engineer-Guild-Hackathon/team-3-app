@@ -37,6 +37,8 @@ export type RunChatInput = {
   subject: string; // 題目
   theme: string; // テーマ
   description?: string; // 詳細説明（任意）：教科・分野の補足情報
+  // clientSessionId: フロントエンド側のセッションID（UUID）。DB上の chats.id と一致させるために使用（任意）。
+  clientSessionId?: string;
   // 履歴は { assistant, user } の配列（時系列順）
   history: ConversationTurn[];
 };

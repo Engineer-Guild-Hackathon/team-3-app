@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { ChatMessage, ChatSession } from "@/types/chat";
 import type { ConversationTurn, RunChatInput } from "@/types/llm";
@@ -36,6 +36,30 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   const [bootIntroDone, setBootIntroDone] = useState(false); // 初回LLM応答の自動生成フラグ
   // サイドバーのUI状態（日本語コメント）
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  // APIからの読み込み済みメッセージ管理（重複フェッチ防止）
+  const loadedMessages = useRef<Record<string, boolean>>({});
+  // 404 Not Found（所有権なし/存在しない）の表示制御
+  const [notFound, setNotFound] = useState(false);
+
+  // 簡易フェッチヘルパー
+  const fetchJson = useCallback(async (url: string, init?: RequestInit) => {
+    const res = await fetch(url, init);
+    if (res.status === 401) {
+      // 未認証はログインへ誘導
+      if (typeof window !== "undefined") window.location.href = "/login";
+      const err: any = new Error("Unauthorized");
+      err.status = 401;
+      throw err;
+    }
+    let data: any = {};
+    try { data = await res.json(); } catch {}
+    if (!res.ok || data?.ok === false) {
+      const err: any = new Error(String(data?.error ?? `HTTP ${res.status}`));
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  }, []);
 
   // 空のセッションを作成
   const createSession = useCallback((fixedId?: string): ChatSession => {
@@ -109,19 +133,66 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
     try { localStorage.setItem(UI_SIDEBAR_OPEN_KEY, sidebarOpen ? "1" : "0"); } catch {}
   }, [sidebarOpen]);
 
+  // API: チャット一覧の読み込み（初回）
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const data = await fetchJson('/api/chats');
+        const items = (data?.result?.items ?? []) as Array<{ id: string; title: string; updatedAt: string | number }>;
+        if (!Array.isArray(items) || items.length === 0) return;
+        const mapped: ChatSession[] = items.map((r) => ({
+          id: String(r.id),
+          title: String(r.title ?? "(無題)"),
+          messages: [],
+          updatedAt: typeof r.updatedAt === 'number' ? r.updatedAt : new Date(r.updatedAt).getTime(),
+        }));
+        setSessions((prev) => {
+          // 既存と統合（同一IDはAPIを優先）
+          const map = new Map<string, ChatSession>();
+          for (const s of prev) map.set(s.id, s);
+          for (const s of mapped) map.set(s.id, s);
+          const merged = Array.from(map.values()).sort((a,b)=>b.updatedAt-a.updatedAt);
+          // アクティブが未設定なら先頭を選ぶ（プロフィール優先表示時は null を維持）
+          if (!activeId && !showProfileOnEmpty && merged.length > 0) setActiveId(merged[0].id);
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(merged)); } catch {}
+          return merged;
+        });
+      } catch {
+        // 失敗時は無視（LocalStorage 維持）
+      }
+    };
+    run();
+    // 初回のみ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // アクティブセッションの取得
   const active = useMemo(() => sessions.find((s) => s.id === activeId) ?? null, [sessions, activeId]);
 
   // 新規チャット
-  const handleNewChat = () => {
-    const newSession = createSession();
-    const next = [newSession, ...sessions];
-    setSessions(next);
-    setActiveId(newSession.id);
-    persist(next);
-    setInput("");
-    // ルーティングで詳細へ遷移
-    router.push(`/chats/${newSession.id}`);
+  const handleNewChat = async () => {
+    try {
+      // API で作成（失敗時はローカルフォールバック）
+      const data = await fetchJson('/api/chats', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      const row = data?.result as { id: string; title: string; updatedAt: string | number };
+      const s: ChatSession = { id: row.id, title: row.title ?? '新しいチャット', messages: [], updatedAt: typeof row.updatedAt === 'number' ? row.updatedAt : new Date(row.updatedAt).getTime() };
+      const next = [s, ...sessions];
+      setSessions(next);
+      setActiveId(s.id);
+      setNotFound(false);
+      persist(next);
+      setInput("");
+      router.push(`/chats/${s.id}`);
+    } catch {
+      const newSession = createSession();
+      const next = [newSession, ...sessions];
+      setSessions(next);
+      setActiveId(newSession.id);
+      setNotFound(false);
+      persist(next);
+      setInput("");
+      router.push(`/chats/${newSession.id}`);
+    }
   };
 
   // 送信処理（API接続版）
@@ -195,19 +266,11 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         chatId,
         subject: current.title || "Chat",
         theme: "default",
+        clientSessionId: current.id,
         history: toTurns(current.messages),
       };
 
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json().catch(() => ({} as any));
-      if (!res.ok || !data?.ok) {
-        throw new Error(data?.error ?? `HTTP ${res.status}`);
-      }
+      const data = await fetchJson('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
 
       // 3) 応答メッセージを追記（RunChatOutput 優先、旧API互換も対応）
       const assistant: ChatMessage = {
@@ -223,6 +286,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
       );
       setSessions(withAssistant);
       persist(withAssistant);
+      loadedMessages.current[active.id] = true; // 以後API再フェッチ不要
     } catch (e: any) {
       // エラー時はメッセージとして表示
       const err: ChatMessage = {
@@ -243,6 +307,35 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
     }
   };
 
+  // 選択中チャットの履歴をAPIからロード（未ロード時のみ）
+  useEffect(() => {
+    const run = async () => {
+      const id = activeId;
+      if (!id || loadedMessages.current[id]) return;
+      try {
+        setNotFound(false);
+        const data = await fetchJson(`/api/chats/${id}/messages`);
+        const items = (data?.result?.items ?? []) as Array<{ id: string; role: 'user'|'assistant'|'system'; content: string; createdAt: string | number }>;
+        if (!Array.isArray(items)) return;
+        setSessions((prev) => prev.map((s) => s.id === id
+          ? {
+              ...s,
+              messages: items.map((m) => ({ id: m.id, role: m.role as any, content: m.content, createdAt: typeof m.createdAt === 'number' ? m.createdAt : new Date(m.createdAt).getTime() })),
+              updatedAt: Date.now(),
+            }
+          : s));
+        loadedMessages.current[id] = true;
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions)); } catch {}
+      } catch (e: any) {
+        if (e?.status === 404) {
+          setNotFound(true);
+        }
+        // 404 以外の失敗は無視（LocalStorage のみ）
+      }
+    };
+    run();
+  }, [activeId, fetchJson, sessions]);
+
   // 新規/空チャットのとき最初に LLM 応答を自動生成（subject=物理, theme=加速度）
   useEffect(() => {
     const autoIntro = async () => {
@@ -257,6 +350,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
           chatId,
           subject: "物理",
           theme: "加速度",
+          clientSessionId: active.id,
           description: `
 高校物理における「加速度」の定義と説明（詳説）
 1. 加速度の定義
@@ -328,7 +422,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
 円運動の例：速さは変わらなくても方向が変わるため、中心に向かう加速度が存在する。曲がる半径が小さいほど加速度は大きくなる。
 `,
           history: [],
-        };
+        } as RunChatInput;
         const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data?.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
@@ -363,22 +457,27 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         sessions={sessions}
         onNewChat={handleNewChat}
         onSelectChat={(id) => setActiveId(id)}
-        onRename={(id, title) => {
+        onRename={async (id, title) => {
           // 名称変更（日本語コメント）
-          const next = sessions.map((s) =>
-            s.id === id ? { ...s, title, updatedAt: Date.now() } : s
-          );
-          setSessions(next);
-          persist(next);
+          try {
+            await fetchJson(`/api/chats/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
+          } catch {}
+          setSessions((prev) => {
+            const next = prev.map((s) => s.id === id ? { ...s, title, updatedAt: Date.now() } : s);
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+            return next;
+          });
         }}
-        onDelete={(id) => {
+        onDelete={async (id) => {
           // 削除処理：アクティブ削除時は次のセッションへ遷移、無ければ新規作成（日本語コメント）
+          try { await fetchJson(`/api/chats/${id}`, { method: 'DELETE' }); } catch {}
           const remained = sessions.filter((s) => s.id !== id);
           if (remained.length === 0) {
             const created = createSession();
             const next = [created];
             setSessions(next);
             setActiveId(created.id);
+            setNotFound(false);
             persist(next);
             router.replace(`/chats/${created.id}`);
             return;
@@ -389,6 +488,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
           if (activeId === id) {
             const nextActive = remained[0].id;
             setActiveId(nextActive);
+            setNotFound(false);
             router.replace(`/chats/${nextActive}`);
           }
         }}
@@ -426,6 +526,19 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
           <ProfilePane />
         ) : active && active.messages.length > 0 ? (
           <MessageList messages={active.messages} />
+        ) : notFound ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="mx-auto w-full max-w-3xl px-6 md:px-8">
+              <div className="text-center space-y-3">
+                <h1 className="text-2xl md:text-3xl font-semibold">チャットが見つかりません</h1>
+                <p className="text-sm text-black/60 dark:text-white/60">存在しない、または権限がありません。別のチャットを選ぶか、新規作成してください。</p>
+                <div className="flex gap-2 justify-center">
+                  <button onClick={() => router.push('/')} className="rounded-lg border border-black/10 dark:border-white/10 px-3 py-1.5 text-sm hover:bg-black/5 dark:hover:bg-white/10">トップへ</button>
+                  <button onClick={handleNewChat} className="rounded-lg bg-black/80 text-white px-3 py-1.5 text-sm hover:bg-black">+ 新しいチャット</button>
+                </div>
+              </div>
+            </div>
+          </div>
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <div className="mx-auto w-full max-w-3xl px-6 md:px-8">

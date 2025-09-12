@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { runChat } from "@/lib/pipeline";
 import { getLogger } from "@/lib/logger";
 import { isRunChatInput, isRunChatOutput } from "@/lib/schemas";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/auth";
+import { db } from "@/db/client";
+import { chats, messages } from "@/db/schema";
+import { and, eq, sql, desc } from "drizzle-orm";
+import { resolveUserIdFromSession } from "@/lib/user";
 
 // App Router の Route Handlers 仕様（GET/POST など）に従う
 // 参考: nextjs docs route handlers :contentReference[oaicite:6]{index=6}
@@ -17,9 +23,89 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Invalid RunChatInput" }, { status: 400 });
     }
 
+    // 認証チェック（未ログインは 401）
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      log.warn({ msg: "unauthorized" });
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const canUseDb = !!db;
+    if (!canUseDb) {
+      log.warn({ msg: "db_unavailable" });
+    }
+
+    // users.id 解決（必要に応じて upsert）
+    let userId: string | null = null;
+    if (canUseDb) {
+      try {
+        userId = await resolveUserIdFromSession(session);
+      } catch (e: any) {
+        log.error({ msg: "user_upsert_failed", err: String(e?.message ?? e) });
+      }
+    }
+
     const sessionId = `chat:${body.chatId}`;
     log.info({ msg: "request(runChat)", chatId: body.chatId, sessionId, turns: body.history?.length ?? 0 });
     const out = await runChat(body, { sessionId, requestId: reqId });
+
+    // DB へ保存（clientSessionId があれば）
+    if (canUseDb && userId && body.clientSessionId) {
+      const chatUuid = String(body.clientSessionId);
+      try {
+        // チャットの存在確認/作成
+        const existing = await db!
+          .select({ id: chats.id })
+          .from(chats)
+          .where(and(eq(chats.id, chatUuid), eq(chats.userId, userId)))
+          .limit(1);
+        if (existing.length === 0) {
+          await db!
+            .insert(chats)
+            .values({ id: chatUuid, userId, title: body.subject, status: 'in_progress' });
+        }
+
+        // 最終ユーザーメッセージ（存在時）
+        const lastTurn = Array.isArray(body.history) && body.history.length > 0 ? body.history[body.history.length - 1] : null;
+        const lastUser = lastTurn && typeof lastTurn.user === 'string' ? lastTurn.user.trim() : '';
+        if (lastUser) {
+          // 直近の user メッセージと重複する場合は挿入をスキップ（簡易重複防止）
+          const last = await db!
+            .select({ content: messages.content })
+            .from(messages)
+            .where(and(eq(messages.chatId, chatUuid), eq(messages.role, 'user')))
+            .orderBy(desc(messages.createdAt))
+            .limit(1);
+          if (!(last[0]?.content === lastUser)) {
+            await db!.insert(messages).values({ chatId: chatUuid, role: 'user', content: lastUser });
+          }
+        }
+
+        // アシスタント応答
+        const assistantText = String(out.answer ?? '').trim();
+        if (assistantText) {
+          // 直近の assistant メッセージと重複する場合は挿入をスキップ（簡易重複防止）
+          const lastA = await db!
+            .select({ content: messages.content })
+            .from(messages)
+            .where(and(eq(messages.chatId, chatUuid), eq(messages.role, 'assistant')))
+            .orderBy(desc(messages.createdAt))
+            .limit(1);
+          if (!(lastA[0]?.content === assistantText)) {
+            await db!.insert(messages).values({ chatId: chatUuid, role: 'assistant', content: assistantText });
+          }
+        }
+
+        // 更新時刻の更新
+        await db!
+          .update(chats)
+          .set({ updatedAt: sql`now()` })
+          .where(and(eq(chats.id, chatUuid), eq(chats.userId, userId)));
+      } catch (e: any) {
+        log.error({ msg: "persist_failed", err: String(e?.message ?? e) });
+      }
+    }
+
     if (!isRunChatOutput(out)) {
       log.error({ msg: "invalid_output_shape", out });
       return NextResponse.json({ ok: false, error: "Invalid RunChatOutput" }, { status: 500 });
