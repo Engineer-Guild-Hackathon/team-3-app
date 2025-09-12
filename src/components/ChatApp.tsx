@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { ChatMessage, ChatSession } from "@/types/chat";
@@ -414,7 +415,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
               currentChatId={activeId}
               onNavigateToChat={handleNewChat}
               onSelectChat={(id) => { setActiveId(id); router.push(`/chats/${id}`); }}
-              onLogout={() => router.push('/login')}
+              onLogout={() => signOut({ callbackUrl: '/login' })}
             />
           ) : notFound ? (
             <div className="w-full h-full flex items-center justify-center">
