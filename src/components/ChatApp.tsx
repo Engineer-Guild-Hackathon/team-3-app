@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { ChatMessage, ChatSession } from "@/types/chat";
 import type { ConversationTurn, RunChatInput } from "@/types/llm";
@@ -36,12 +36,36 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   const [bootIntroDone, setBootIntroDone] = useState(false); // 初回LLM応答の自動生成フラグ
   // サイドバーのUI状態（日本語コメント）
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  // APIからの読み込み済みメッセージ管理（重複フェッチ防止）
+  const loadedMessages = useRef<Record<string, boolean>>({});
+  // 404 Not Found（所有権なし/存在しない）の表示制御
+  const [notFound, setNotFound] = useState(false);
+
+  // 簡易フェッチヘルパー
+  const fetchJson = useCallback(async (url: string, init?: RequestInit) => {
+    const res = await fetch(url, init);
+    if (res.status === 401) {
+      // 未認証はログインへ誘導
+      if (typeof window !== "undefined") window.location.href = "/login";
+      const err: any = new Error("Unauthorized");
+      err.status = 401;
+      throw err;
+    }
+    let data: any = {};
+    try { data = await res.json(); } catch {}
+    if (!res.ok || data?.ok === false) {
+      const err: any = new Error(String(data?.error ?? `HTTP ${res.status}`));
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  }, []);
 
   // 空のセッションを作成
   const createSession = useCallback((fixedId?: string): ChatSession => {
     const id = fixedId ?? rid();
     const now = Date.now();
-    return { id, title: "新しいチャット", messages: [], updatedAt: now };
+    return { id, title: "新しいチャット", status: "in_progress", messages: [], updatedAt: now };
   }, []);
 
   // 保存
@@ -109,25 +133,73 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
     try { localStorage.setItem(UI_SIDEBAR_OPEN_KEY, sidebarOpen ? "1" : "0"); } catch {}
   }, [sidebarOpen]);
 
+  // API: チャット一覧の読み込み（初回）
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const data = await fetchJson('/api/chats');
+        const items = (data?.result?.items ?? []) as Array<{ id: string; title: string; status: 'in_progress'|'ended'; updatedAt: string | number }>;
+        if (!Array.isArray(items) || items.length === 0) return;
+        const mapped: ChatSession[] = items.map((r) => ({
+          id: String(r.id),
+          title: String(r.title ?? "(無題)"),
+          status: (r.status ?? 'in_progress'),
+          messages: [],
+          updatedAt: typeof r.updatedAt === 'number' ? r.updatedAt : new Date(r.updatedAt).getTime(),
+        }));
+        setSessions((prev) => {
+          // 既存と統合（同一IDはAPIを優先）
+          const map = new Map<string, ChatSession>();
+          for (const s of prev) map.set(s.id, s);
+          for (const s of mapped) map.set(s.id, s);
+          const merged = Array.from(map.values()).sort((a,b)=>b.updatedAt-a.updatedAt);
+          // アクティブが未設定なら先頭を選ぶ（プロフィール優先表示時は null を維持）
+          if (!activeId && !showProfileOnEmpty && merged.length > 0) setActiveId(merged[0].id);
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(merged)); } catch {}
+          return merged;
+        });
+      } catch {
+        // 失敗時は無視（LocalStorage 維持）
+      }
+    };
+    run();
+    // 初回のみ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // アクティブセッションの取得
   const active = useMemo(() => sessions.find((s) => s.id === activeId) ?? null, [sessions, activeId]);
 
   // 新規チャット
-  const handleNewChat = () => {
-    const newSession = createSession();
-    const next = [newSession, ...sessions];
-    setSessions(next);
-    setActiveId(newSession.id);
-    persist(next);
-    setInput("");
-    // ルーティングで詳細へ遷移
-    router.push(`/chats/${newSession.id}`);
+  const handleNewChat = async () => {
+    try {
+      // API で作成（失敗時はローカルフォールバック）
+      const data = await fetchJson('/api/chats', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      const row = data?.result as { id: string; title: string; status?: 'in_progress'|'ended'; updatedAt: string | number };
+      const s: ChatSession = { id: row.id, title: row.title ?? '新しいチャット', status: row.status ?? 'in_progress', messages: [], updatedAt: typeof row.updatedAt === 'number' ? row.updatedAt : new Date(row.updatedAt).getTime() };
+      const next = [s, ...sessions];
+      setSessions(next);
+      setActiveId(s.id);
+      setNotFound(false);
+      persist(next);
+      setInput("");
+      router.push(`/chats/${s.id}`);
+    } catch {
+      const newSession = createSession();
+      const next = [newSession, ...sessions];
+      setSessions(next);
+      setActiveId(newSession.id);
+      setNotFound(false);
+      persist(next);
+      setInput("");
+      router.push(`/chats/${newSession.id}`);
+    }
   };
 
   // 送信処理（API接続版）
   const handleSend = async () => {
-    // ガード
-    if (!active || !input.trim() || sending) return;
+    // ガード（ended の場合は送信不可）
+    if (!active || !input.trim() || sending || active.status === 'ended') return;
 
     // 1) ユーザーメッセージをセッションに反映
     const userMsg: ChatMessage = {
@@ -193,21 +265,13 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
 
       const payload: RunChatInput = {
         chatId,
-        subject: current.title || "Chat",
-        theme: "default",
+        subject: "数学",
+        theme: "三角関数",
+        clientSessionId: current.id,
         history: toTurns(current.messages),
       };
 
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json().catch(() => ({} as any));
-      if (!res.ok || !data?.ok) {
-        throw new Error(data?.error ?? `HTTP ${res.status}`);
-      }
+      const data = await fetchJson('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
 
       // 3) 応答メッセージを追記（RunChatOutput 優先、旧API互換も対応）
       const assistant: ChatMessage = {
@@ -216,13 +280,15 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         content: String(data.result?.answer ?? data.result?.text ?? ""),
         createdAt: Date.now(),
       };
+      const ended = (data.result?.status ?? 0) === -1 ? false : true;
       const withAssistant = nextSessions.map((s) =>
         s.id === active.id
-          ? { ...s, messages: [...s.messages, assistant], updatedAt: Date.now() }
+          ? { ...s, status: ended ? 'ended' : (s.status ?? 'in_progress'), messages: [...s.messages, assistant], updatedAt: Date.now() }
           : s
       );
       setSessions(withAssistant);
       persist(withAssistant);
+      loadedMessages.current[active.id] = true; // 以後API再フェッチ不要
     } catch (e: any) {
       // エラー時はメッセージとして表示
       const err: ChatMessage = {
@@ -243,6 +309,35 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
     }
   };
 
+  // 選択中チャットの履歴をAPIからロード（未ロード時のみ）
+  useEffect(() => {
+    const run = async () => {
+      const id = activeId;
+      if (!id || loadedMessages.current[id]) return;
+      try {
+        setNotFound(false);
+        const data = await fetchJson(`/api/chats/${id}/messages`);
+        const items = (data?.result?.items ?? []) as Array<{ id: string; role: 'user'|'assistant'|'system'; content: string; createdAt: string | number }>;
+        if (!Array.isArray(items)) return;
+        setSessions((prev) => prev.map((s) => s.id === id
+          ? {
+              ...s,
+              messages: items.map((m) => ({ id: m.id, role: m.role as any, content: m.content, createdAt: typeof m.createdAt === 'number' ? m.createdAt : new Date(m.createdAt).getTime() })),
+              updatedAt: Date.now(),
+            }
+          : s));
+        loadedMessages.current[id] = true;
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions)); } catch {}
+      } catch (e: any) {
+        if (e?.status === 404) {
+          setNotFound(true);
+        }
+        // 404 以外の失敗は無視（LocalStorage のみ）
+      }
+    };
+    run();
+  }, [activeId, fetchJson, sessions]);
+
   // 新規/空チャットのとき最初に LLM 応答を自動生成（subject=物理, theme=加速度）
   useEffect(() => {
     const autoIntro = async () => {
@@ -255,86 +350,18 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         })();
         const payload = {
           chatId,
-          subject: "物理",
-          theme: "加速度",
-          description: `
-高校物理における「加速度」の定義と説明（詳説）
-1. 加速度の定義
-
-加速度とは、物体の速度が時間とともにどのように変化するかを表す量。
-
-「単位時間あたりにどれだけ速度が変化するか」を示す。
-
-速度の変化を時間で割ることで平均加速度が定義される。
-
-時間を限りなく細かく見ていくと、ある瞬間の加速度を考えることができ、これを「瞬時の加速度」という。
-
-2. 単位と性質
-
-単位は「メートル毎秒毎秒（m/s²）」。
-
-意味は「毎秒ごとに速度が何メートル毎秒ずつ変化するか」。
-
-加速度はベクトル量であり、大きさと向きを持つ。
-
-速度の大きさが変わる場合だけでなく、向きが変わる場合にも加速度が存在する。
-
-3. 加速度の向きと直線運動
-
-加速度の向きは「速度の変化の向き」と一致する。
-
-直線運動では、速度と加速度が同じ向きのとき物体は速くなり、逆向きのとき物体は遅くなる。
-
-「加速度が正なら加速」「加速度が負なら減速」と表現されるが、実際には速度と加速度の向きの関係で決まる。
-
-4. 加速度の物理的意味
-
-加速度は「速度がどれくらいの速さで変化しているか」を定量的に示す。
-
-速度が短時間で大きく変われば加速度は大きく、ゆるやかに変化すれば小さい。
-
-車が急ブレーキをかけると加速度は大きく、ゆっくり減速すると加速度は小さい。
-
-5. 方向の変化による加速度
-
-速度の変化には速さだけでなく方向の変化も含まれる。
-
-そのため、速さが一定でも進む方向が変わる運動には加速度がある。
-
-円運動では、物体は一定の速さで動いていても中心に向かう加速度が常に働いている。
-
-6. 等加速度運動
-
-加速度が時間によらず一定の運動を「等加速度運動」という。
-
-この場合、速度と時間や位置と時間の関係を簡単な式で表すことができる。
-
-等加速度運動は、加速度の概念を理解する上で典型的な例である。
-
-7. 力との関係
-
-ニュートンの運動の法則によれば、物体に加わる合力が加速度を生み出す。
-
-加速度は力の大きさに比例し、質量に反比例する。
-
-つまり「力があるから加速度が生じる」というのが基本的な考え方である。
-
-8. 具体例
-
-直線運動の例：車の速度が毎秒ごとに一定の量だけ増えたり減ったりするとき、それが加速度である。
-
-減速の例：速度と逆向きの加速度が働いており、速度が毎秒ごとに一定量ずつ小さくなっている。
-
-円運動の例：速さは変わらなくても方向が変わるため、中心に向かう加速度が存在する。曲がる半径が小さいほど加速度は大きくなる。
-`,
+          subject: "数学",
+          theme: "三角関数",
+          clientSessionId: active.id,
           history: [],
-        };
+        } as RunChatInput;
         const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data?.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
         const assistant: ChatMessage = { id: rid(), role: "assistant", content: String(data.result?.answer ?? data.result?.text ?? ""), createdAt: Date.now() };
         setSessions((prev) => {
-          const next = prev.map((s) => s.id === active.id ? { ...s, messages: [...s.messages, assistant], updatedAt: Date.now(), title: s.title === "新しいチャット" && assistant.content ? assistant.content.slice(0, 24) : s.title } : s);
+          const ended = (data.result?.status ?? 0) === -1 ? false : true;
+          const next = prev.map((s) => s.id === active.id ? { ...s, status: ended ? 'ended' : (s.status ?? 'in_progress'), messages: [...s.messages, assistant], updatedAt: Date.now(), title: s.title === "新しいチャット" && assistant.content ? assistant.content.slice(0, 24) : s.title } : s);
           try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
           return next;
         });
@@ -363,22 +390,27 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         sessions={sessions}
         onNewChat={handleNewChat}
         onSelectChat={(id) => setActiveId(id)}
-        onRename={(id, title) => {
+        onRename={async (id, title) => {
           // 名称変更（日本語コメント）
-          const next = sessions.map((s) =>
-            s.id === id ? { ...s, title, updatedAt: Date.now() } : s
-          );
-          setSessions(next);
-          persist(next);
+          try {
+            await fetchJson(`/api/chats/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
+          } catch {}
+          setSessions((prev) => {
+            const next = prev.map((s) => s.id === id ? { ...s, title, updatedAt: Date.now() } : s);
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+            return next;
+          });
         }}
-        onDelete={(id) => {
+        onDelete={async (id) => {
           // 削除処理：アクティブ削除時は次のセッションへ遷移、無ければ新規作成（日本語コメント）
+          try { await fetchJson(`/api/chats/${id}`, { method: 'DELETE' }); } catch {}
           const remained = sessions.filter((s) => s.id !== id);
           if (remained.length === 0) {
             const created = createSession();
             const next = [created];
             setSessions(next);
             setActiveId(created.id);
+            setNotFound(false);
             persist(next);
             router.replace(`/chats/${created.id}`);
             return;
@@ -389,6 +421,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
           if (activeId === id) {
             const nextActive = remained[0].id;
             setActiveId(nextActive);
+            setNotFound(false);
             router.replace(`/chats/${nextActive}`);
           }
         }}
@@ -426,6 +459,19 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
           <ProfilePane />
         ) : active && active.messages.length > 0 ? (
           <MessageList messages={active.messages} />
+        ) : notFound ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="mx-auto w-full max-w-3xl px-6 md:px-8">
+              <div className="text-center space-y-3">
+                <h1 className="text-2xl md:text-3xl font-semibold">チャットが見つかりません</h1>
+                <p className="text-sm text-black/60 dark:text-white/60">存在しない、または権限がありません。別のチャットを選ぶか、新規作成してください。</p>
+                <div className="flex gap-2 justify-center">
+                  <button onClick={() => router.push('/')} className="rounded-lg border border-black/10 dark:border-white/10 px-3 py-1.5 text-sm hover:bg-black/5 dark:hover:bg-white/10">トップへ</button>
+                  <button onClick={handleNewChat} className="rounded-lg bg-black/80 text-white px-3 py-1.5 text-sm hover:bg-black">+ 新しいチャット</button>
+                </div>
+              </div>
+            </div>
+          </div>
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <div className="mx-auto w-full max-w-3xl px-6 md:px-8">
@@ -437,8 +483,24 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         )}
 
         {/* 入力欄 */}
-        {!showProfile && (
+        {/* チャット入力欄：ended の場合は非表示にして通知バーを出す（日本語コメント）*/}
+        {!showProfile && active && active.status !== 'ended' && (
           <ChatInput value={input} setValue={setInput} onSend={handleSend} disabled={sending} />
+        )}
+        {!showProfile && active && active.status === 'ended' && (
+          <div className="border-t border-black/10 dark:border-white/10 p-4 bg-white/60 dark:bg-white/5 backdrop-blur">
+            <div className="mx-auto w-full max-w-3xl flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-sm text-black/70 dark:text-white/70">
+                このチャットは終了しました（送信はできません）。
+              </div>
+              <button
+                onClick={handleNewChat}
+                className="inline-flex items-center gap-2 rounded-xl bg-black/80 text-white px-3 py-2 text-sm hover:bg-black"
+              >
+                + 新しいチャット
+              </button>
+            </div>
+          </div>
         )}
       </main>
     </div>
