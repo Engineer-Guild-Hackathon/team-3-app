@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import type { ChatMessage, ChatSession } from "@/types/chat";
+import type { ConversationTurn, RunChatInput } from "@/types/llm";
 
 import ChatInput from "./chat/ChatInput";
 import MessageList from "./chat/MessageList";
@@ -32,6 +33,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   const [activeId, setActiveId] = useState<string | null>(initialId ?? null);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [bootIntroDone, setBootIntroDone] = useState(false); // 初回LLM応答の自動生成フラグ
   // サイドバーのUI状態（日本語コメント）
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -153,9 +155,47 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
     setSending(true);
     try {
       const current = nextSessions.find((s) => s.id === active.id)!;
-      // API へ渡す最小メッセージ形式に変換
-      const payload = {
-        messages: current.messages.map((m) => ({ role: m.role, content: m.content })),
+
+      // 数値 chatId へ変換（UUID→32bit hash）
+      const chatId = (() => {
+        const str = current.id;
+        let h = 0;
+        for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
+        return Math.abs(h);
+      })();
+
+      // 履歴を { assistant, user } のターン配列へ変換
+      const toTurns = (msgs: ChatMessage[]): ConversationTurn[] => {
+        const turns: ConversationTurn[] = [];
+        let pendingA = "";
+        let pendingU = "";
+        for (const m of msgs) {
+          if (m.role === "assistant") {
+            if (pendingA || pendingU) {
+              turns.push({ assistant: pendingA, user: pendingU });
+              pendingA = ""; pendingU = "";
+            }
+            pendingA = m.content;
+          } else if (m.role === "user") {
+            if (pendingU) {
+              turns.push({ assistant: pendingA, user: pendingU });
+              pendingA = ""; pendingU = "";
+            }
+            pendingU = m.content;
+            // assistant が未到着でも一旦ペアとして確定
+            turns.push({ assistant: pendingA, user: pendingU });
+            pendingA = ""; pendingU = "";
+          }
+        }
+        if (pendingA || pendingU) turns.push({ assistant: pendingA, user: pendingU });
+        return turns;
+      };
+
+      const payload: RunChatInput = {
+        chatId,
+        subject: current.title || "Chat",
+        theme: "default",
+        history: toTurns(current.messages),
       };
 
       const res = await fetch("/api/chat", {
@@ -169,11 +209,11 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         throw new Error(data?.error ?? `HTTP ${res.status}`);
       }
 
-      // 3) 応答メッセージを追記
+      // 3) 応答メッセージを追記（RunChatOutput 優先、旧API互換も対応）
       const assistant: ChatMessage = {
         id: rid(),
         role: "assistant",
-        content: String(data.result?.text ?? ""),
+        content: String(data.result?.answer ?? data.result?.text ?? ""),
         createdAt: Date.now(),
       };
       const withAssistant = nextSessions.map((s) =>
@@ -202,6 +242,111 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
       setSending(false);
     }
   };
+
+  // 新規/空チャットのとき最初に LLM 応答を自動生成（subject=物理, theme=加速度）
+  useEffect(() => {
+    const autoIntro = async () => {
+      if (!active || sending || bootIntroDone) return;
+      if (active.messages.length > 0) return;
+      setSending(true);
+      try {
+        const chatId = (() => {
+          const str = active.id; let h = 0; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0; return Math.abs(h);
+        })();
+        const payload = {
+          chatId,
+          subject: "物理",
+          theme: "加速度",
+          description: `
+高校物理における「加速度」の定義と説明（詳説）
+1. 加速度の定義
+
+加速度とは、物体の速度が時間とともにどのように変化するかを表す量。
+
+「単位時間あたりにどれだけ速度が変化するか」を示す。
+
+速度の変化を時間で割ることで平均加速度が定義される。
+
+時間を限りなく細かく見ていくと、ある瞬間の加速度を考えることができ、これを「瞬時の加速度」という。
+
+2. 単位と性質
+
+単位は「メートル毎秒毎秒（m/s²）」。
+
+意味は「毎秒ごとに速度が何メートル毎秒ずつ変化するか」。
+
+加速度はベクトル量であり、大きさと向きを持つ。
+
+速度の大きさが変わる場合だけでなく、向きが変わる場合にも加速度が存在する。
+
+3. 加速度の向きと直線運動
+
+加速度の向きは「速度の変化の向き」と一致する。
+
+直線運動では、速度と加速度が同じ向きのとき物体は速くなり、逆向きのとき物体は遅くなる。
+
+「加速度が正なら加速」「加速度が負なら減速」と表現されるが、実際には速度と加速度の向きの関係で決まる。
+
+4. 加速度の物理的意味
+
+加速度は「速度がどれくらいの速さで変化しているか」を定量的に示す。
+
+速度が短時間で大きく変われば加速度は大きく、ゆるやかに変化すれば小さい。
+
+車が急ブレーキをかけると加速度は大きく、ゆっくり減速すると加速度は小さい。
+
+5. 方向の変化による加速度
+
+速度の変化には速さだけでなく方向の変化も含まれる。
+
+そのため、速さが一定でも進む方向が変わる運動には加速度がある。
+
+円運動では、物体は一定の速さで動いていても中心に向かう加速度が常に働いている。
+
+6. 等加速度運動
+
+加速度が時間によらず一定の運動を「等加速度運動」という。
+
+この場合、速度と時間や位置と時間の関係を簡単な式で表すことができる。
+
+等加速度運動は、加速度の概念を理解する上で典型的な例である。
+
+7. 力との関係
+
+ニュートンの運動の法則によれば、物体に加わる合力が加速度を生み出す。
+
+加速度は力の大きさに比例し、質量に反比例する。
+
+つまり「力があるから加速度が生じる」というのが基本的な考え方である。
+
+8. 具体例
+
+直線運動の例：車の速度が毎秒ごとに一定の量だけ増えたり減ったりするとき、それが加速度である。
+
+減速の例：速度と逆向きの加速度が働いており、速度が毎秒ごとに一定量ずつ小さくなっている。
+
+円運動の例：速さは変わらなくても方向が変わるため、中心に向かう加速度が存在する。曲がる半径が小さいほど加速度は大きくなる。
+`,
+          history: [],
+        };
+        const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data?.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
+        const assistant: ChatMessage = { id: rid(), role: "assistant", content: String(data.result?.answer ?? data.result?.text ?? ""), createdAt: Date.now() };
+        setSessions((prev) => {
+          const next = prev.map((s) => s.id === active.id ? { ...s, messages: [...s.messages, assistant], updatedAt: Date.now(), title: s.title === "新しいチャット" && assistant.content ? assistant.content.slice(0, 24) : s.title } : s);
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+          return next;
+        });
+        setBootIntroDone(true);
+      } catch (_) {
+        // 失敗時は黙ってスキップ
+      } finally {
+        setSending(false);
+      }
+    };
+    autoIntro();
+  }, [active, sending, bootIntroDone]);
 
   // 予備：提案カードの選択ハンドラ（未使用）
 
