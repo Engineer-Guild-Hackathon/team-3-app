@@ -18,6 +18,25 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      non_spar: ${{ steps.filter.outputs.non_spar }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            non_spar:
+              - '**'
+              - '!SPAR_UI/**'
+
   lint:
     name: Lint / Type Check
     runs-on: ubuntu-latest
@@ -69,6 +88,8 @@ jobs:
 
   build:
     name: Build (OS matrix)
+    needs: [changes]
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.non_spar == 'true' }}
     strategy:
       fail-fast: false
       matrix:
