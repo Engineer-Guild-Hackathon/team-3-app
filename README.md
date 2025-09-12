@@ -113,3 +113,22 @@ cp .env.dev.sample .env.dev
 # dev サービスを起動
 docker compose -f docker-compose.dev.yml up --build
 ```
+
+### データベース操作（Taskfile 簡易化）
+
+```bash
+# 起動/停止/状態
+task db:up        # Start Postgres(17) + web (detached)
+task db:down      # Stop db + web
+task db:ps        # Show compose services status
+task db:logs      # Tail web/db logs
+
+# マイグレーション & Studio
+task db:migrate   # Run Drizzle migrations in web container
+task db:studio    # Open Drizzle Studio at http://localhost:4983
+
+# クイックチェック
+task db:check     # pgcrypto / tables / views / env
+```
+
+Note: 初回は `task db:up` の後に `task db:migrate` を実行してください。
