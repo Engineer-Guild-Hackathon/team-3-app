@@ -31,6 +31,51 @@ tasks:
       - echo "Stopping dev containers..."
       - docker compose -f docker-compose.dev.yml down --remove-orphans
 
+  # --- Database (Docker Compose + Drizzle) ---------------------------------
+  db:up:
+    desc: Start Postgres(17) + web (detached)
+    cmds:
+      - echo "Starting db + web (detached)..."
+      - docker compose -f docker-compose.dev.yml up -d --build
+
+  db:down:
+    desc: Stop db + web containers
+    cmds:
+      - echo "Stopping db + web..."
+      - docker compose -f docker-compose.dev.yml down --remove-orphans
+
+  db:ps:
+    desc: Show compose services status
+    cmds:
+      - docker compose -f docker-compose.dev.yml ps -a
+
+  db:logs:
+    desc: Tail web/db logs (latest 100)
+    cmds:
+      - docker compose -f docker-compose.dev.yml logs --tail=100 web || true
+      - docker compose -f docker-compose.dev.yml logs --tail=100 db || true
+
+  db:migrate:
+    desc: Run Drizzle migrations in web container
+    cmds:
+      - echo "Running migrations..."
+      - docker compose -f docker-compose.dev.yml run --rm web sh -c 'npm run -s db:migrate'
+
+  db:studio:
+    desc: Open Drizzle Studio on localhost:4983
+    cmds:
+      - echo "Starting Drizzle Studio at http://localhost:4983" 
+      - docker compose -f docker-compose.dev.yml run --rm -p 4983:4983 web sh -c 'npm run -s db:studio'
+
+  db:check:
+    desc: Quick checks (pgcrypto, tables, views)
+    cmds:
+      - echo "Check: compose status" && docker compose -f docker-compose.dev.yml ps -a
+      - echo "Check: DATABASE_URL in web" && docker compose -f docker-compose.dev.yml run --rm web sh -c 'printenv DATABASE_URL || echo not-set'
+      - echo "Check: pgcrypto extension" && docker compose -f docker-compose.dev.yml exec db psql -U dev -d team3app_dev -c '\dx pgcrypto' || true
+      - echo "Check: tables" && docker compose -f docker-compose.dev.yml exec db psql -U dev -d team3app_dev -c '\dt' || true
+      - echo "Check: views" && docker compose -f docker-compose.dev.yml exec db psql -U dev -d team3app_dev -c '\dv' || true
+
   # --- Build only (Staging/Production) -------------------------------------
   build:stg:
     desc: Build staging image only (no run)
