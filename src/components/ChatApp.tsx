@@ -65,7 +65,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   const createSession = useCallback((fixedId?: string): ChatSession => {
     const id = fixedId ?? rid();
     const now = Date.now();
-    return { id, title: "新しいチャット", messages: [], updatedAt: now };
+    return { id, title: "新しいチャット", status: "in_progress", messages: [], updatedAt: now };
   }, []);
 
   // 保存
@@ -138,11 +138,12 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
     const run = async () => {
       try {
         const data = await fetchJson('/api/chats');
-        const items = (data?.result?.items ?? []) as Array<{ id: string; title: string; updatedAt: string | number }>;
+        const items = (data?.result?.items ?? []) as Array<{ id: string; title: string; status: 'in_progress'|'ended'; updatedAt: string | number }>;
         if (!Array.isArray(items) || items.length === 0) return;
         const mapped: ChatSession[] = items.map((r) => ({
           id: String(r.id),
           title: String(r.title ?? "(無題)"),
+          status: (r.status ?? 'in_progress'),
           messages: [],
           updatedAt: typeof r.updatedAt === 'number' ? r.updatedAt : new Date(r.updatedAt).getTime(),
         }));
@@ -174,8 +175,8 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
     try {
       // API で作成（失敗時はローカルフォールバック）
       const data = await fetchJson('/api/chats', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-      const row = data?.result as { id: string; title: string; updatedAt: string | number };
-      const s: ChatSession = { id: row.id, title: row.title ?? '新しいチャット', messages: [], updatedAt: typeof row.updatedAt === 'number' ? row.updatedAt : new Date(row.updatedAt).getTime() };
+      const row = data?.result as { id: string; title: string; status?: 'in_progress'|'ended'; updatedAt: string | number };
+      const s: ChatSession = { id: row.id, title: row.title ?? '新しいチャット', status: row.status ?? 'in_progress', messages: [], updatedAt: typeof row.updatedAt === 'number' ? row.updatedAt : new Date(row.updatedAt).getTime() };
       const next = [s, ...sessions];
       setSessions(next);
       setActiveId(s.id);
@@ -197,8 +198,8 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
 
   // 送信処理（API接続版）
   const handleSend = async () => {
-    // ガード
-    if (!active || !input.trim() || sending) return;
+    // ガード（ended の場合は送信不可）
+    if (!active || !input.trim() || sending || active.status === 'ended') return;
 
     // 1) ユーザーメッセージをセッションに反映
     const userMsg: ChatMessage = {
@@ -264,8 +265,8 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
 
       const payload: RunChatInput = {
         chatId,
-        subject: current.title || "Chat",
-        theme: "default",
+        subject: "数学",
+        theme: "三角関数",
         clientSessionId: current.id,
         history: toTurns(current.messages),
       };
@@ -279,9 +280,10 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         content: String(data.result?.answer ?? data.result?.text ?? ""),
         createdAt: Date.now(),
       };
+      const ended = (data.result?.status ?? 0) === -1 ? false : true;
       const withAssistant = nextSessions.map((s) =>
         s.id === active.id
-          ? { ...s, messages: [...s.messages, assistant], updatedAt: Date.now() }
+          ? { ...s, status: ended ? 'ended' : (s.status ?? 'in_progress'), messages: [...s.messages, assistant], updatedAt: Date.now() }
           : s
       );
       setSessions(withAssistant);
@@ -348,79 +350,9 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         })();
         const payload = {
           chatId,
-          subject: "物理",
-          theme: "加速度",
+          subject: "数学",
+          theme: "三角関数",
           clientSessionId: active.id,
-          description: `
-高校物理における「加速度」の定義と説明（詳説）
-1. 加速度の定義
-
-加速度とは、物体の速度が時間とともにどのように変化するかを表す量。
-
-「単位時間あたりにどれだけ速度が変化するか」を示す。
-
-速度の変化を時間で割ることで平均加速度が定義される。
-
-時間を限りなく細かく見ていくと、ある瞬間の加速度を考えることができ、これを「瞬時の加速度」という。
-
-2. 単位と性質
-
-単位は「メートル毎秒毎秒（m/s²）」。
-
-意味は「毎秒ごとに速度が何メートル毎秒ずつ変化するか」。
-
-加速度はベクトル量であり、大きさと向きを持つ。
-
-速度の大きさが変わる場合だけでなく、向きが変わる場合にも加速度が存在する。
-
-3. 加速度の向きと直線運動
-
-加速度の向きは「速度の変化の向き」と一致する。
-
-直線運動では、速度と加速度が同じ向きのとき物体は速くなり、逆向きのとき物体は遅くなる。
-
-「加速度が正なら加速」「加速度が負なら減速」と表現されるが、実際には速度と加速度の向きの関係で決まる。
-
-4. 加速度の物理的意味
-
-加速度は「速度がどれくらいの速さで変化しているか」を定量的に示す。
-
-速度が短時間で大きく変われば加速度は大きく、ゆるやかに変化すれば小さい。
-
-車が急ブレーキをかけると加速度は大きく、ゆっくり減速すると加速度は小さい。
-
-5. 方向の変化による加速度
-
-速度の変化には速さだけでなく方向の変化も含まれる。
-
-そのため、速さが一定でも進む方向が変わる運動には加速度がある。
-
-円運動では、物体は一定の速さで動いていても中心に向かう加速度が常に働いている。
-
-6. 等加速度運動
-
-加速度が時間によらず一定の運動を「等加速度運動」という。
-
-この場合、速度と時間や位置と時間の関係を簡単な式で表すことができる。
-
-等加速度運動は、加速度の概念を理解する上で典型的な例である。
-
-7. 力との関係
-
-ニュートンの運動の法則によれば、物体に加わる合力が加速度を生み出す。
-
-加速度は力の大きさに比例し、質量に反比例する。
-
-つまり「力があるから加速度が生じる」というのが基本的な考え方である。
-
-8. 具体例
-
-直線運動の例：車の速度が毎秒ごとに一定の量だけ増えたり減ったりするとき、それが加速度である。
-
-減速の例：速度と逆向きの加速度が働いており、速度が毎秒ごとに一定量ずつ小さくなっている。
-
-円運動の例：速さは変わらなくても方向が変わるため、中心に向かう加速度が存在する。曲がる半径が小さいほど加速度は大きくなる。
-`,
           history: [],
         } as RunChatInput;
         const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
@@ -428,7 +360,8 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         if (!res.ok || !data?.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
         const assistant: ChatMessage = { id: rid(), role: "assistant", content: String(data.result?.answer ?? data.result?.text ?? ""), createdAt: Date.now() };
         setSessions((prev) => {
-          const next = prev.map((s) => s.id === active.id ? { ...s, messages: [...s.messages, assistant], updatedAt: Date.now(), title: s.title === "新しいチャット" && assistant.content ? assistant.content.slice(0, 24) : s.title } : s);
+          const ended = (data.result?.status ?? 0) === -1 ? false : true;
+          const next = prev.map((s) => s.id === active.id ? { ...s, status: ended ? 'ended' : (s.status ?? 'in_progress'), messages: [...s.messages, assistant], updatedAt: Date.now(), title: s.title === "新しいチャット" && assistant.content ? assistant.content.slice(0, 24) : s.title } : s);
           try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
           return next;
         });
@@ -550,8 +483,24 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         )}
 
         {/* 入力欄 */}
-        {!showProfile && (
+        {/* チャット入力欄：ended の場合は非表示にして通知バーを出す（日本語コメント）*/}
+        {!showProfile && active && active.status !== 'ended' && (
           <ChatInput value={input} setValue={setInput} onSend={handleSend} disabled={sending} />
+        )}
+        {!showProfile && active && active.status === 'ended' && (
+          <div className="border-t border-black/10 dark:border-white/10 p-4 bg-white/60 dark:bg-white/5 backdrop-blur">
+            <div className="mx-auto w-full max-w-3xl flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-sm text-black/70 dark:text-white/70">
+                このチャットは終了しました（送信はできません）。
+              </div>
+              <button
+                onClick={handleNewChat}
+                className="inline-flex items-center gap-2 rounded-xl bg-black/80 text-white px-3 py-2 text-sm hover:bg-black"
+              >
+                + 新しいチャット
+              </button>
+            </div>
+          </div>
         )}
       </main>
     </div>

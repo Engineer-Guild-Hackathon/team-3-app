@@ -45,6 +45,21 @@ export async function POST(req: Request) {
       }
     }
 
+    // ended チャットのブロック（DBにチャットが存在し、status=ended の場合）
+    if (canUseDb && userId && body.clientSessionId) {
+      try {
+        const st = await db!
+          .select({ status: chats.status })
+          .from(chats)
+          .where(and(eq(chats.id, String(body.clientSessionId)), eq(chats.userId, userId)))
+          .limit(1);
+        if (st[0]?.status === 'ended') {
+          log.warn({ msg: 'chat_already_ended', chatId: String(body.clientSessionId) });
+          return NextResponse.json({ ok: false, error: 'Chat already ended' }, { status: 409 });
+        }
+      } catch {}
+    }
+
     const sessionId = `chat:${body.chatId}`;
     log.info({ msg: "request(runChat)", chatId: body.chatId, sessionId, turns: body.history?.length ?? 0 });
     const out = await runChat(body, { sessionId, requestId: reqId });
@@ -96,10 +111,11 @@ export async function POST(req: Request) {
           }
         }
 
-        // 更新時刻の更新
+        // 更新時刻の更新 + ステータス反映（LLM出力が 0/1 の場合は ended）
+        const endedOut = out.status !== -1;
         await db!
           .update(chats)
-          .set({ updatedAt: sql`now()` })
+          .set({ updatedAt: sql`now()`, ...(endedOut ? { status: 'ended' as const } : {}) })
           .where(and(eq(chats.id, chatUuid), eq(chats.userId, userId)));
       } catch (e: any) {
         log.error({ msg: "persist_failed", err: String(e?.message ?? e) });

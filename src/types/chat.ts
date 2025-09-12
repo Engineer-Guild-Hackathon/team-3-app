@@ -12,7 +12,8 @@ export type ChatMessage = {
 export type ChatSession = {
   id: string;
   title: string;
+  // ステータス（in_progress | ended）。ended の場合は送受信不能。
+  status?: "in_progress" | "ended";
   messages: ChatMessage[];
   updatedAt: number;
 };
-
