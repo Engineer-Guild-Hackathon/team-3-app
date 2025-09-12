@@ -91,6 +91,7 @@ jobs:
         env:
           NEXT_TELEMETRY_DISABLED: '1'
           NEXT_PRIVATE_SKIP_ENV_LOADING: '1'
+          NODE_ENV: production
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
           NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
