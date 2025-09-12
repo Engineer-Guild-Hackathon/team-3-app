@@ -70,11 +70,11 @@ tasks:
   db:check:
     desc: Quick checks (pgcrypto, tables, views)
     cmds:
-      - echo "Check: compose status" && docker compose -f docker-compose.dev.yml ps -a
-      - echo "Check: DATABASE_URL in web" && docker compose -f docker-compose.dev.yml run --rm web sh -c 'printenv DATABASE_URL || echo not-set'
-      - echo "Check: pgcrypto extension" && docker compose -f docker-compose.dev.yml exec db psql -U dev -d team3app_dev -c '\dx pgcrypto' || true
-      - echo "Check: tables" && docker compose -f docker-compose.dev.yml exec db psql -U dev -d team3app_dev -c '\dt' || true
-      - echo "Check: views" && docker compose -f docker-compose.dev.yml exec db psql -U dev -d team3app_dev -c '\dv' || true
+      - echo "Check compose status" && docker compose -f docker-compose.dev.yml ps -a
+      - echo "Check DATABASE_URL in web" && docker compose -f docker-compose.dev.yml run --rm web sh -c 'printenv DATABASE_URL || echo not-set'
+      - echo "Check pgcrypto extension" && docker compose -f docker-compose.dev.yml exec db psql -U dev -d team3app_dev -c '\dx pgcrypto' || true
+      - echo "Check tables" && docker compose -f docker-compose.dev.yml exec db psql -U dev -d team3app_dev -c '\dt' || true
+      - echo "Check views" && docker compose -f docker-compose.dev.yml exec db psql -U dev -d team3app_dev -c '\dv' || true
 
   # --- Build only (Staging/Production) -------------------------------------
   build:stg:
