@@ -64,8 +64,8 @@ tasks:
   db:studio:
     desc: Open Drizzle Studio on localhost:4983
     cmds:
-      - echo "Starting Drizzle Studio at http://localhost:4983" 
-      - docker compose -f docker-compose.dev.yml run --rm -p 4983:4983 web sh -c 'npm run -s db:studio'
+      - echo "Starting Drizzle Studio at http://localhost:4983"
+      - docker compose -f docker-compose.dev.yml run --rm -p 4983:4983 web sh -lc 'npx drizzle-kit studio --host 0.0.0.0 --port 4983 --verbose'
 
   db:check:
     desc: Quick checks (pgcrypto, tables, views)
