@@ -9,22 +9,11 @@ import type {
   ChatTriState,
   ConversationTurn,
 } from "@/types/llm";
+import { getRunChatSystemPrompt } from "./prompts";
 
 // ------------------------------
 // ヘルパー（共通処理）
 // ------------------------------
-
-/**
- * JSON モードの要件を満たすため、メッセージ内に小文字 "json" が含まれるよう保証する。
- * 必要なら先頭に system:"json" を注入する。
- */
-
-/**
- * runChat 用の system プロンプトを組み立てる
- */
-function buildRunChatSystemPrompt(subject: string, theme: string, status: ChatTriState): string {
-  return `You are a helpful assistant. Subject: ${subject}. Theme: ${theme}. Status: ${status}. Answer clearly in plain text.`;
-}
 
 /**
  * { assistant, user } のターン配列を ChatCompletion メッセージ配列へ展開する
@@ -38,17 +27,6 @@ function mapTurnsToMessages(turns: ConversationTurn[]): LlmMessage[] {
   }
   return out;
 }
-
-/**
- * Chat補完（最終動作のみ）
- * - JSON モード（response_format: json_object）で応答を取得
- * - 先頭に JSON 専用システム指示を注入（オプション）
- */
-/**
- * JSON モードでの 1 回分の応答取得
- * - 入力: 任意の ChatCompletion メッセージ列
- * - 出力: { json, text }（JSON はオブジェクト形状に正規化）
- */
 
 /**
  * runChat: 型指定の入出力でテキスト回答を得る関数
@@ -74,27 +52,53 @@ export async function runChat(input: RunChatInput, opts: Partial<RunChatOptions>
 
   log.info({ msg: "runChat:start", sessionId, requestId, chatId: input.chatId, status: inputStatus });
 
-  // subject/theme を system に集約。history は {assistant,user} のペアを assistant→user の順で展開
-  const sys = buildRunChatSystemPrompt(input.subject, input.theme, inputStatus);
+  // subject/theme/status をテンプレへ注入した system 指示を使用
+  const sys = await getRunChatSystemPrompt(input.subject, input.theme, inputStatus);
   const turns: ConversationTurn[] = input.history ?? [];
   const messages: LlmMessage[] = [{ role: "system", content: sys }, ...mapTurnsToMessages(turns)];
   log.debug({ msg: "runChat:history_mapped", turns: turns.length, messages: messages.length });
 
+  // JSON Schema で構造化出力を強制（answer/status のみ）
+  const response_format = {
+    type: "json_schema",
+    json_schema: {
+      name: "run_chat_output",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          answer: { type: "string" },
+          status: { type: "integer", enum: [-1, 0, 1] },
+        },
+        required: ["answer", "status"],
+      },
+      strict: true,
+    },
+  } as const;
+
   const t0 = Date.now();
-  const resp = await getAOAI().chat.completions.create({ model, messages } as any);
+  const resp = await getAOAI().chat.completions.create({ model, messages, response_format } as any);
   const dt = Date.now() - t0;
-  const answer = resp.choices?.[0]?.message?.content?.trim?.() ?? "";
+
+  const raw = resp.choices?.[0]?.message?.content ?? "";
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = null;
+  }
+
+  let out: RunChatOutput;
+  if (parsed && typeof parsed === "object" && isRunChatOutput(parsed)) {
+    out = parsed as RunChatOutput;
+  } else {
+    // フォールバック：スキーマ外の応答やパース失敗時
+    const fallbackAnswer = String(raw || "").trim();
+    const fallbackStatus: ChatTriState = fallbackAnswer ? inputStatus : 0;
+    out = { chatId: input.chatId, answer: fallbackAnswer, status: fallbackStatus };
+  }
 
   // 回答本文は長くなるため、ログには文字数のみを出力
-  log.info({ msg: "runChat:final", sessionId, requestId, chatId: input.chatId, ms: dt, chars: answer.length });
-
-  // 成功: 1、未回答: 0、例外時: -1（catch 側）
-  const out: RunChatOutput = { chatId: input.chatId, answer, status: answer ? 1 : 0 };
-  if (isRunChatOutput(out)) {
-    log.debug({ msg: "runChat:output_valid", chatId: out.chatId, status: out.status, hasAnswer: out.answer.length > 0 });
-    return out;
-  }
-  // フォールバック（ここに来ない想定だが、安全のため）
-  log.error({ msg: "runChat:output_invalid", chatId: input.chatId });
-  return { chatId: input.chatId, answer: String(answer ?? ""), status: answer ? 1 : 0 };
+  log.info({ msg: "runChat:final", sessionId, requestId, chatId: input.chatId, ms: dt, chars: out.answer.length, status: out.status });
+  return out;
 }
