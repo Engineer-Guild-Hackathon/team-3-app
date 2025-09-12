@@ -44,16 +44,15 @@ export function renderTemplate(tpl: string, vars: Record<string, string | number
  * - 置換キー: {{subject}}, {{theme}}, {{status}}
  * - テンプレの内容のみを変更すれば挙動を変えられる
  */
-export async function getRunChatSystemPrompt(subject: string, theme: string, status: number): Promise<string> {
+export async function getRunChatSystemPrompt(subject: string, theme: string): Promise<string> {
   const fallback = [
     "You are a helpful assistant.",
     "Subject: {{subject}}",
     "Theme: {{theme}}",
-    "Status: {{status}}",
     "Answer clearly in plain text.",
   ].join("\n");
   const tpl = await getPrompt("run-chat", fallback);
-  const rendered = renderTemplate(tpl, { subject, theme, status });
+  const rendered = renderTemplate(tpl, { subject, theme });
   log.debug({ msg: "rendered", name: "run-chat", chars: rendered.length });
   return rendered;
 }

@@ -27,6 +27,5 @@ export function isRunChatInput(val: unknown): val is RunChatInput {
   const subjectOk = typeof o.subject === "string";
   const themeOk = typeof o.theme === "string";
   const historyOk = Array.isArray(o.history) && o.history.every(isConversationTurn);
-  const statusOk = isChatTriState(o.status);
-  return idOk && subjectOk && themeOk && historyOk && statusOk;
+  return idOk && subjectOk && themeOk && historyOk;
 }

@@ -43,16 +43,13 @@ export async function runChat(input: RunChatInput, opts: Partial<RunChatOptions>
   const log = getLogger("pipeline");
   const model = process.env.AZURE_OPENAI_DEPLOYMENT!;
 
-  // ステータスを -1 | 0 | 1 に正規化し、以降で使用
-  const inputStatus: ChatTriState = (input.status < 0 ? -1 : input.status > 0 ? 1 : 0) as ChatTriState;
-
   const sessionId = opts.sessionId ?? `chat:${input.chatId}`;
   const requestId = opts.requestId ?? crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 
-  log.info({ msg: "runChat:start", sessionId, requestId, chatId: input.chatId, status: inputStatus });
+  log.info({ msg: "runChat:start", sessionId, requestId, chatId: input.chatId });
 
-  // subject/theme/status をテンプレへ注入した system 指示を使用
-  const sys = await getRunChatSystemPrompt(input.subject, input.theme, inputStatus);
+  // subject/theme をテンプレへ注入した system 指示を使用
+  const sys = await getRunChatSystemPrompt(input.subject, input.theme);
   const turns: ConversationTurn[] = input.history ?? [];
   const messages: LlmMessage[] = [{ role: "system", content: sys }, ...mapTurnsToMessages(turns)];
   if (turns.length === 0) {
@@ -99,7 +96,7 @@ export async function runChat(input: RunChatInput, opts: Partial<RunChatOptions>
   } else {
     // フォールバック：スキーマ外の応答やパース失敗時
     const fallbackAnswer = String(raw || "").trim();
-    const fallbackStatus: ChatTriState = fallbackAnswer ? inputStatus : 0;
+    const fallbackStatus: ChatTriState = fallbackAnswer ? 0 : 0;
     out = { chatId: input.chatId, answer: fallbackAnswer, status: fallbackStatus };
   }
 

@@ -196,7 +196,6 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         subject: current.title || "Chat",
         theme: "default",
         history: toTurns(current.messages),
-        status: 0,
       };
 
       const res = await fetch("/api/chat", {
@@ -259,7 +258,6 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
           subject: "物理",
           theme: "加速度",
           history: [],
-          status: 0,
         };
         const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         const data = await res.json().catch(() => ({}));

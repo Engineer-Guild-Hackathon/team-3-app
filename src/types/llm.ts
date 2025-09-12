@@ -38,7 +38,6 @@ export type RunChatInput = {
   theme: string; // テーマ
   // 履歴は { assistant, user } の配列（時系列順）
   history: ConversationTurn[];
-  status: ChatTriState; // -1 | 0 | 1
 };
 
 export type RunChatOutput = {
