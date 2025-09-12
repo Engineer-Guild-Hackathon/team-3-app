@@ -41,18 +41,19 @@ export function renderTemplate(tpl: string, vars: Record<string, string | number
 
 /**
  * runChat 用の system プロンプトを、単一テキスト（prompts/run-chat.txt）から読み込んで生成
- * - 置換キー: {{subject}}, {{theme}}, {{status}}
+ * - 置換キー: {{subject}}, {{theme}}, {{description}}
  * - テンプレの内容のみを変更すれば挙動を変えられる
  */
-export async function getRunChatSystemPrompt(subject: string, theme: string): Promise<string> {
+export async function getRunChatSystemPrompt(subject: string, theme: string, description: string = ""): Promise<string> {
   const fallback = [
     "You are a helpful assistant.",
     "Subject: {{subject}}",
     "Theme: {{theme}}",
+    "Description: {{description}}",
     "Answer clearly in plain text.",
   ].join("\n");
   const tpl = await getPrompt("run-chat", fallback);
-  const rendered = renderTemplate(tpl, { subject, theme });
+  const rendered = renderTemplate(tpl, { subject, theme, description });
   log.debug({ msg: "rendered", name: "run-chat", chars: rendered.length });
   return rendered;
 }

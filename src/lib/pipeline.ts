@@ -1,6 +1,6 @@
 import { getAOAI } from "./openai";
 import { getLogger } from "./logger";
-import { isRunChatOutput } from "./schemas";
+import { isRunChatOutput, isAnswerWithStatus } from "./schemas";
 import type {
   LlmMessage,
   RunChatOptions,
@@ -48,16 +48,10 @@ export async function runChat(input: RunChatInput, opts: Partial<RunChatOptions>
 
   log.info({ msg: "runChat:start", sessionId, requestId, chatId: input.chatId });
 
-  // subject/theme をテンプレへ注入した system 指示を使用
-  const sys = await getRunChatSystemPrompt(input.subject, input.theme);
+  // subject/theme/description をテンプレへ注入した system 指示を使用
+  const sys = await getRunChatSystemPrompt(input.subject, input.theme, input.description ?? "");
   const turns: ConversationTurn[] = input.history ?? [];
   const messages: LlmMessage[] = [{ role: "system", content: sys }, ...mapTurnsToMessages(turns)];
-  if (turns.length === 0) {
-    // 履歴が無い場合は、初回応答を生成するための合成ユーザープロンプトを付与（UIには表示しない）
-    const kickoff = `テーマ「${input.theme}」の基礎と直感的な説明を簡潔に述べ、身近な例を1つ挙げ、次の一歩を1つ提案してください。`;
-    messages.push({ role: "user", content: kickoff });
-    log.debug({ msg: "runChat:kickoff_injected" });
-  }
   log.debug({ msg: "runChat:history_mapped", turns: turns.length, messages: messages.length });
 
   // JSON Schema で構造化出力を強制（answer/status のみ）
@@ -91,7 +85,11 @@ export async function runChat(input: RunChatInput, opts: Partial<RunChatOptions>
   }
 
   let out: RunChatOutput;
-  if (parsed && typeof parsed === "object" && isRunChatOutput(parsed)) {
+  if (parsed && typeof parsed === "object" && isAnswerWithStatus(parsed)) {
+    // LLM の素の JSON（answer/status のみ）を最終形へマッピング
+    out = { chatId: input.chatId, answer: (parsed as any).answer, status: (parsed as any).status };
+  } else if (parsed && typeof parsed === "object" && isRunChatOutput(parsed)) {
+    // 互換: もし chatId を含む完全形で返ってきた場合
     out = parsed as RunChatOutput;
   } else {
     // フォールバック：スキーマ外の応答やパース失敗時

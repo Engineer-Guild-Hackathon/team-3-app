@@ -27,5 +27,18 @@ export function isRunChatInput(val: unknown): val is RunChatInput {
   const subjectOk = typeof o.subject === "string";
   const themeOk = typeof o.theme === "string";
   const historyOk = Array.isArray(o.history) && o.history.every(isConversationTurn);
-  return idOk && subjectOk && themeOk && historyOk;
+  const descOk = o.description == null || typeof o.description === "string";
+  return idOk && subjectOk && themeOk && historyOk && descOk;
+}
+
+/**
+ * LLMの素の出力（answer/status のみ）を判定するための軽量ガード。
+ * - パイプライン内部で JSON を組み立てる前段の検証に使用する。
+ */
+export function isAnswerWithStatus(val: unknown): val is { answer: string; status: ChatTriState } {
+  if (typeof val !== "object" || val === null) return false;
+  const o = val as any;
+  const answerOk = typeof o.answer === "string";
+  const statusOk = o.status === -1 || o.status === 0 || o.status === 1;
+  return answerOk && statusOk;
 }
