@@ -32,7 +32,6 @@ function mapTurnsToMessages(turns: ConversationTurn[]): LlmMessage[] {
  * runChat: 型指定の入出力でテキスト回答を得る関数
  * - 入力: { chatId, subject, theme, history[], status }
  * - 出力: { chatId, answer, status }
- * - JSON モードは使わず、プレーンテキストで回答
  */
 /**
  * 型付きの runChat
@@ -56,6 +55,12 @@ export async function runChat(input: RunChatInput, opts: Partial<RunChatOptions>
   const sys = await getRunChatSystemPrompt(input.subject, input.theme, inputStatus);
   const turns: ConversationTurn[] = input.history ?? [];
   const messages: LlmMessage[] = [{ role: "system", content: sys }, ...mapTurnsToMessages(turns)];
+  if (turns.length === 0) {
+    // 履歴が無い場合は、初回応答を生成するための合成ユーザープロンプトを付与（UIには表示しない）
+    const kickoff = `テーマ「${input.theme}」の基礎と直感的な説明を簡潔に述べ、身近な例を1つ挙げ、次の一歩を1つ提案してください。`;
+    messages.push({ role: "user", content: kickoff });
+    log.debug({ msg: "runChat:kickoff_injected" });
+  }
   log.debug({ msg: "runChat:history_mapped", turns: turns.length, messages: messages.length });
 
   // JSON Schema で構造化出力を強制（answer/status のみ）

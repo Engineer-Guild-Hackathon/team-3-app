@@ -31,11 +31,6 @@ export async function getPrompt(name: string, fallback?: string): Promise<string
   }
 }
 
-// よく使うデフォルト（日本語コメント）
-export const DEFAULT_SYSTEM_BASE_JA = "あなたは役に立つアシスタントです。";
-export const DEFAULT_JSON_MODE_SYSTEM =
-  "Return only a valid json object. No code fences, no extra text. Keys may include additional, future fields (extensible).";
-
 // ------------------------------
 // テンプレートレンダリング（{{key}} を置換）
 // ------------------------------

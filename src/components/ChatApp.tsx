@@ -33,6 +33,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   const [activeId, setActiveId] = useState<string | null>(initialId ?? null);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [bootIntroDone, setBootIntroDone] = useState(false); // 初回LLM応答の自動生成フラグ
   // サイドバーのUI状態（日本語コメント）
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -242,6 +243,42 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
       setSending(false);
     }
   };
+
+  // 新規/空チャットのとき最初に LLM 応答を自動生成（subject=物理, theme=加速度）
+  useEffect(() => {
+    const autoIntro = async () => {
+      if (!active || sending || bootIntroDone) return;
+      if (active.messages.length > 0) return;
+      setSending(true);
+      try {
+        const chatId = (() => {
+          const str = active.id; let h = 0; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0; return Math.abs(h);
+        })();
+        const payload = {
+          chatId,
+          subject: "物理",
+          theme: "加速度",
+          history: [],
+          status: 0,
+        };
+        const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data?.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
+        const assistant: ChatMessage = { id: rid(), role: "assistant", content: String(data.result?.answer ?? data.result?.text ?? ""), createdAt: Date.now() };
+        setSessions((prev) => {
+          const next = prev.map((s) => s.id === active.id ? { ...s, messages: [...s.messages, assistant], updatedAt: Date.now(), title: s.title === "新しいチャット" && assistant.content ? assistant.content.slice(0, 24) : s.title } : s);
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+          return next;
+        });
+        setBootIntroDone(true);
+      } catch (_) {
+        // 失敗時は黙ってスキップ
+      } finally {
+        setSending(false);
+      }
+    };
+    autoIntro();
+  }, [active, sending, bootIntroDone]);
 
   // 予備：提案カードの選択ハンドラ（未使用）
 
