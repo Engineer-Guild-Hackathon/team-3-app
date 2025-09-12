@@ -15,6 +15,20 @@
       "when": 1757659000000,
       "tag": "0001_prototype_constraints_and_view",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1757659000001,
+      "tag": "0002_phase_a_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1757659000002,
+      "tag": "0003_seed_subjects_topics",
+      "breakpoints": true
     }
   ]
 }

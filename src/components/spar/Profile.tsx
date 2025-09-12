@@ -6,16 +6,22 @@ import { User, MessageSquarePlus, LogOut, MessageSquare } from 'lucide-react';
 import SubjectDropdown from './SubjectDropdown';
 import FieldMultiSelect from './FieldMultiSelect';
 import type { ChatSession } from '@/types/chat';
+import { useSession } from 'next-auth/react';
 
 type Props = {
   chatSessions: ChatSession[];
   currentChatId?: string | null;
-  onNavigateToChat: () => void;
+  onCreateChat: (opts?: { subjectId?: string; prefTopicName?: string }) => void;
   onSelectChat: (id: string) => void;
   onLogout: () => void;
 };
 
-export default function Profile({ chatSessions, currentChatId = null, onNavigateToChat, onSelectChat, onLogout }: Props) {
+export default function Profile({ chatSessions, currentChatId = null, onCreateChat, onSelectChat, onLogout }: Props) {
+  // 認証済みユーザー情報の取得（日本語コメント）
+  const { data: session } = useSession();
+  const displayName = session?.user?.name || 'ユーザー名';
+  const displayEmail = session?.user?.email || '';
+  const avatarUrl = (session?.user as any)?.image as string | undefined;
   const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [skipSubject, setSkipSubject] = useState(false);
@@ -39,12 +45,18 @@ export default function Profile({ chatSessions, currentChatId = null, onNavigate
           {/* Header */}
           <div className="flex items-center justify-between flex-shrink-0 mb-6">
             <div className="flex items-center gap-4">
-              <motion.div whileHover={{ scale: 1.05 }} className="w-16 h-16 rounded-full backdrop-blur-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-white/20 shadow-lg shadow-blue-500/10 flex items-center justify-center">
-                <User className="w-8 h-8 text-blue-600" />
+              <motion.div whileHover={{ scale: 1.05 }} className="w-16 h-16 rounded-full backdrop-blur-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-white/20 shadow-lg shadow-blue-500/10 flex items-center justify-center overflow-hidden">
+                {avatarUrl ? (
+                  // ユーザーのアバター（存在する場合）
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-8 h-8 text-blue-600" />
+                )}
               </motion.div>
-              <div>
-                <h1 className="text-gray-800">ユーザー名</h1>
-                <p className="text-gray-600">学習プロフィール</p>
+              <div className="min-w-0">
+                <h1 className="text-gray-800 truncate">{displayName}</h1>
+                <p className="text-gray-600 truncate">{displayEmail || '学習プロフィール'}</p>
               </div>
             </div>
             <motion.button onClick={onLogout} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="p-3 rounded-xl backdrop-blur-xl bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 hover:border-red-500/30 transition-all duration-200 shadow-lg shadow-red-500/5 flex items-center gap-2 group">
@@ -78,7 +90,7 @@ export default function Profile({ chatSessions, currentChatId = null, onNavigate
           {/* Actions & History */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="flex-1 flex flex-col min-h-0">
             <div className="flex justify-center mb-6 flex-shrink-0">
-              <motion.button onClick={onNavigateToChat} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="px-8 py-4 rounded-2xl backdrop-blur-xl bg-blue-500/20 border border-white/20 hover:bg-blue-500/30 transition-all duration-200 shadow-lg shadow-blue-500/10 flex items-center gap-3 text-blue-600">
+              <motion.button onClick={() => onCreateChat({ subjectId: selectedSubject || undefined })} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="px-8 py-4 rounded-2xl backdrop-blur-xl bg-blue-500/20 border border-white/20 hover:bg-blue-500/30 transition-all duration-200 shadow-lg shadow-blue-500/10 flex items-center gap-3 text-blue-600">
                 <MessageSquarePlus className="w-5 h-5" />
                 <span>New Chat</span>
               </motion.button>
@@ -121,4 +133,3 @@ export default function Profile({ chatSessions, currentChatId = null, onNavigate
     </div>
   );
 }
-

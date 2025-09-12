@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/auth";
 import { db } from "@/db/client";
-import { chats } from "@/db/schema";
+import { chats, subjects } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { getLogger } from "@/lib/logger";
 import { resolveUserIdFromSession } from "@/lib/user";
@@ -44,8 +44,11 @@ export async function GET(req: Request) {
         status: chats.status,
         createdAt: chats.createdAt,
         updatedAt: chats.updatedAt,
+        subjectId: chats.subjectId,
+        subjectName: subjects.name,
       })
       .from(chats)
+      .leftJoin(subjects, eq(chats.subjectId, subjects.id))
       .where(eq(chats.userId, userId))
       .orderBy(desc(chats.updatedAt))
       .limit(limit);
@@ -87,7 +90,7 @@ export async function POST(req: Request) {
     const inserted = await db
       .insert(chats)
       .values({ userId, title, subjectId })
-      .returning({ id: chats.id, title: chats.title, createdAt: chats.createdAt, updatedAt: chats.updatedAt, status: chats.status });
+      .returning({ id: chats.id, title: chats.title, createdAt: chats.createdAt, updatedAt: chats.updatedAt, status: chats.status, subjectId: chats.subjectId });
 
     const row = inserted[0];
     log.info({ msg: "created", id: row?.id });

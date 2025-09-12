@@ -138,12 +138,14 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
     const run = async () => {
       try {
         const data = await fetchJson('/api/chats');
-        const items = (data?.result?.items ?? []) as Array<{ id: string; title: string; status: 'in_progress'|'ended'; updatedAt: string | number }>;
+        const items = (data?.result?.items ?? []) as Array<{ id: string; title: string; status: 'in_progress'|'ended'; updatedAt: string | number; subjectId?: string; subjectName?: string }>;
         if (!Array.isArray(items) || items.length === 0) return;
         const mapped: ChatSession[] = items.map((r) => ({
           id: String(r.id),
           title: String(r.title ?? "(無題)"),
           status: (r.status ?? 'in_progress'),
+          subjectId: r.subjectId,
+          subjectName: r.subjectName,
           messages: [],
           updatedAt: typeof r.updatedAt === 'number' ? r.updatedAt : new Date(r.updatedAt).getTime(),
         }));
@@ -171,12 +173,14 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   const active = useMemo(() => sessions.find((s) => s.id === activeId) ?? null, [sessions, activeId]);
 
   // 新規チャット
-  const handleNewChat = async () => {
+  const handleNewChat = async (opts?: { subjectId?: string; prefTopicName?: string }) => {
     try {
       // API で作成（失敗時はローカルフォールバック）
-      const data = await fetchJson('/api/chats', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-      const row = data?.result as { id: string; title: string; status?: 'in_progress'|'ended'; updatedAt: string | number };
-      const s: ChatSession = { id: row.id, title: row.title ?? '新しいチャット', status: row.status ?? 'in_progress', messages: [], updatedAt: typeof row.updatedAt === 'number' ? row.updatedAt : new Date(row.updatedAt).getTime() };
+      const body: any = {};
+      if (opts?.subjectId) body.subjectId = opts.subjectId;
+      const data = await fetchJson('/api/chats', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const row = data?.result as { id: string; title: string; status?: 'in_progress'|'ended'; updatedAt: string | number; subjectId?: string };
+      const s: ChatSession = { id: row.id, title: row.title ?? '新しいチャット', status: row.status ?? 'in_progress', subjectId: row.subjectId, prefTopicName: opts?.prefTopicName, messages: [], updatedAt: typeof row.updatedAt === 'number' ? row.updatedAt : new Date(row.updatedAt).getTime() };
       const next = [s, ...sessions];
       setSessions(next);
       setActiveId(s.id);
@@ -263,10 +267,12 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         return turns;
       };
 
+      const subj = current.subjectName || (current.subjectId ? '' : '数学');
+      const themeDefault = (subj || '数学') === '英語' ? '仮定法' : '確率';
       const payload: RunChatInput = {
         chatId,
-        subject: "数学",
-        theme: "三角関数",
+        subject: subj || "数学",
+        theme: current.prefTopicName || themeDefault,
         clientSessionId: current.id,
         history: toTurns(current.messages),
       };
@@ -348,10 +354,12 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         const chatId = (() => {
           const str = active.id; let h = 0; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0; return Math.abs(h);
         })();
+        const subj2 = active.subjectName || (active.subjectId ? '' : '数学');
+        const themeDefault2 = (subj2 || '数学') === '英語' ? '仮定法' : '確率';
         const payload = {
           chatId,
-          subject: "数学",
-          theme: "三角関数",
+          subject: subj2 || "数学",
+          theme: active.prefTopicName || themeDefault2,
           clientSessionId: active.id,
           history: [],
         } as RunChatInput;
@@ -413,7 +421,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
             <SparProfile
               chatSessions={sessions}
               currentChatId={activeId}
-              onNavigateToChat={handleNewChat}
+              onCreateChat={handleNewChat}
               onSelectChat={(id) => { setActiveId(id); router.push(`/chats/${id}`); }}
               onLogout={() => signOut({ callbackUrl: '/login' })}
             />
@@ -425,11 +433,11 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
                   <p className="text-sm text-black/60 dark:text-white/60">存在しない、または権限がありません。別のチャットを選ぶか、新規作成してください。</p>
                   <div className="flex gap-2 justify-center">
                     <button onClick={() => router.push('/')} className="rounded-lg border border-black/10 dark:border-white/10 px-3 py-1.5 text-sm hover:bg-black/5 dark:hover:bg-white/10">トップへ</button>
-                    <button onClick={handleNewChat} className="rounded-lg bg-black/80 text-white px-3 py-1.5 text-sm hover:bg-black">+ 新しいチャット</button>
-                  </div>
+                    <button onClick={() => handleNewChat()} className="rounded-lg bg-black/80 text-white px-3 py-1.5 text-sm hover:bg-black">+ 新しいチャット</button>
                 </div>
               </div>
             </div>
+          </div>
           ) : (
             <SparChatbot
               messages={active?.messages ?? []}

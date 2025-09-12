@@ -7,19 +7,27 @@ import { ChevronDown, BookOpen } from 'lucide-react';
 
 type Props = { value: string; onChange: (v: string) => void; disabled?: boolean };
 
-const subjects = [
-  { id: 'math', name: '数学' },
-  { id: 'english', name: '英語' },
-  { id: 'science', name: '理科' },
-  { id: 'japanese', name: '国語' },
-  { id: 'social', name: '社会' },
-  { id: 'programming', name: 'プログラミング' },
-];
+type Subject = { id: string; name: string };
 
 export default function SubjectDropdown({ value, onChange, disabled = false }: Props) {
   const [isOpen, setIsOpen] = useState(false);
+  const [items, setItems] = useState<Subject[]>([]);
   const ref = useRef<HTMLDivElement>(null);
-  const selected = subjects.find(s => s.id === value);
+  const selected = items.find(s => s.id === value);
+
+  useEffect(() => {
+    let aborted = false;
+    const run = async () => {
+      try {
+        const res = await fetch('/api/subjects');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data?.ok === false) return;
+        if (!aborted) setItems(data.result?.items ?? []);
+      } catch {}
+    };
+    run();
+    return () => { aborted = true; };
+  }, []);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setIsOpen(false); };
@@ -41,7 +49,7 @@ export default function SubjectDropdown({ value, onChange, disabled = false }: P
       <AnimatePresence>
         {isOpen && !disabled && (
           <motion.div initial={{ opacity: 0, y: -10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -10, scale: 0.95 }} transition={{ duration: 0.2 }} className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-2xl shadow-2xl shadow-black/20 overflow-hidden min-w-full z-[100]">
-            {subjects.map(sub => (
+            {items.map(sub => (
               <button key={sub.id} onClick={(e) => { e.preventDefault(); e.stopPropagation(); onChange(sub.id); setIsOpen(false); }} className="w-full p-4 text-left hover:bg-blue-50 transition-all duration-200 text-gray-800 border-b border-gray-100 last:border-b-0 bg-white cursor-pointer focus:outline-none focus:bg-blue-50">
                 {sub.name}
               </button>
@@ -52,4 +60,3 @@ export default function SubjectDropdown({ value, onChange, disabled = false }: P
     </div>
   );
 }
-

@@ -3,27 +3,33 @@
 // _ui_sample の FieldMultiSelect と同等機能（日本語コメント）
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Plus } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 type Props = {
   selectedFields: string[];
   onFieldsChange: (fields: string[]) => void;
-  subject: string;
+  subject: string; // subject id
   disabled?: boolean;
 };
 
 type Field = { id: string; name: string };
 
-const fieldsBySubject: Record<string, Field[]> = {
-  math: [ { id: 'algebra', name: '代数' }, { id: 'geometry', name: '幾何' }, { id: 'calculus', name: '微積分' }, { id: 'statistics', name: '統計' } ],
-  english: [ { id: 'grammar', name: '文法' }, { id: 'reading', name: '読解' }, { id: 'writing', name: 'ライティング' }, { id: 'listening', name: 'リスニング' } ],
-  science: [ { id: 'physics', name: '物理' }, { id: 'chemistry', name: '化学' }, { id: 'biology', name: '生物' }, { id: 'earth', name: '地学' } ],
-  japanese: [ { id: 'modern', name: '現代文' }, { id: 'classical', name: '古典' }, { id: 'writing', name: '作文' }, { id: 'kanji', name: '漢字' } ],
-  social: [ { id: 'history', name: '歴史' }, { id: 'geography', name: '地理' }, { id: 'civics', name: '公民' }, { id: 'economics', name: '経済' } ],
-  programming: [ { id: 'javascript', name: 'JavaScript' }, { id: 'python', name: 'Python' }, { id: 'react', name: 'React' }, { id: 'algorithms', name: 'アルゴリズム' } ],
-};
-
 export default function FieldMultiSelect({ selectedFields, onFieldsChange, subject, disabled = false }: Props) {
-  const available = fieldsBySubject[subject] || [];
+  const [available, setAvailable] = useState<Field[]>([]);
+  useEffect(() => {
+    let aborted = false;
+    const run = async () => {
+      if (!subject) { setAvailable([]); return; }
+      try {
+        const res = await fetch(`/api/subjects/${subject}/topics`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data?.ok === false) return;
+        if (!aborted) setAvailable(data.result?.items ?? []);
+      } catch {}
+    };
+    run();
+    return () => { aborted = true; };
+  }, [subject]);
   const toggle = (id: string) => {
     if (disabled) return;
     onFieldsChange(selectedFields.includes(id) ? selectedFields.filter(x=>x!==id) : [...selectedFields, id]);
@@ -78,4 +84,3 @@ export default function FieldMultiSelect({ selectedFields, onFieldsChange, subje
     </div>
   );
 }
-
