@@ -9,13 +9,18 @@
     "typecheck": "tsc -p tsconfig.typecheck.json",
     "lint": "eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix",
-    "lint:ci": "eslint . --max-warnings=0"
+    "lint:ci": "eslint . --max-warnings=0",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@azure/identity": "^4.12.0",
+    "drizzle-orm": "^0.33.0",
     "next": "15.5.2",
     "next-auth": "^4.24.7",
     "openai": "^5.20.1",
+    "pg": "^8.16.3",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },
@@ -26,6 +31,8 @@
     "@types/react-dom": "^19",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
+    "dotenv": "^16.6.1",
+    "drizzle-kit": "^0.24.2",
     "eslint": "^8.57.1",
     "eslint-config-next": "^15.5.2",
     "eslint-plugin-simple-import-sort": "^10.0.0",
