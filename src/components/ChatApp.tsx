@@ -6,9 +6,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { ChatMessage, ChatSession } from "@/types/chat";
 import type { ConversationTurn, RunChatInput } from "@/types/llm";
 
-import ChatInput from "./chat/ChatInput";
-import MessageList from "./chat/MessageList";
-import Sidebar from "./sidebar/Sidebar";
+import SparSidebar from "./spar/ChatSidebar";
+import SparChatbot from "./spar/Chatbot";
 import ProfilePane from "@/components/ProfilePane";
 import UserMenu from "@/components/auth/UserMenu";
 
@@ -385,124 +384,55 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   const showProfile = showProfileOnEmpty && (!active || active.messages.length === 0);
 
   return (
-    <div className="flex h-screen">
-      <Sidebar
-        sessions={sessions}
-        onNewChat={handleNewChat}
-        onSelectChat={(id) => setActiveId(id)}
-        onRename={async (id, title) => {
-          // 名称変更（日本語コメント）
-          try {
-            await fetchJson(`/api/chats/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
-          } catch {}
-          setSessions((prev) => {
-            const next = prev.map((s) => s.id === id ? { ...s, title, updatedAt: Date.now() } : s);
-            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
-            return next;
-          });
-        }}
-        onDelete={async (id) => {
-          // 削除処理：アクティブ削除時は次のセッションへ遷移、無ければ新規作成（日本語コメント）
-          try { await fetchJson(`/api/chats/${id}`, { method: 'DELETE' }); } catch {}
-          const remained = sessions.filter((s) => s.id !== id);
-          if (remained.length === 0) {
-            const created = createSession();
-            const next = [created];
-            setSessions(next);
-            setActiveId(created.id);
-            setNotFound(false);
-            persist(next);
-            router.replace(`/chats/${created.id}`);
-            return;
-          }
-          setSessions(remained);
-          persist(remained);
+    <div className="h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 overflow-hidden">
+      {/* 背景のアニメーション要素（日本語コメント）*/}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-400/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-pink-400/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
+      </div>
 
-          if (activeId === id) {
-            const nextActive = remained[0].id;
-            setActiveId(nextActive);
-            setNotFound(false);
-            router.replace(`/chats/${nextActive}`);
-          }
-        }}
-        activeId={activeId ?? undefined}
-        collapsed={!sidebarOpen}
-        onToggle={() => setSidebarOpen((v) => !v)}
-      />
+      <div className="relative z-10 h-full flex gap-4 p-4">
+        <SparSidebar
+          sessions={sessions}
+          activeId={activeId ?? undefined}
+          onNewChat={handleNewChat}
+          onSelectChat={(id) => {
+            setActiveId(id);
+            router.push(`/chats/${id}`);
+          }}
+          isExpanded={sidebarOpen}
+          onToggleExpanded={() => setSidebarOpen((v) => !v)}
+        />
 
-      <main className="flex-1 flex flex-col">
-        {/* ヘッダ */}
-        <div className="h-14 border-b border-black/10 dark:border-white/10 px-2 md:px-4 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            {!sidebarOpen && (
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="inline-flex items-center justify-center rounded-md p-2 hover:bg-black/10 dark:hover:bg-white/10"
-                aria-label="サイドバーを開く"
-                title="サイドバーを開く"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4">
-                  <path d="M3 6.75A.75.75 0 0 1 3.75 6h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 6.75Zm0 3.5A.75.75 0 0 1 3.75 9.5h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 10.25Zm0 3.5a.75.75 0 0 1 .75-.75h12.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1-.75-.75Z"/>
-                </svg>
-              </button>
-            )}
-            <div className="font-semibold truncate">{showProfile ? "Profile" : "Chat"}</div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="text-xs text-black/50 dark:text-white/50 hidden sm:block">UI Demo</div>
-            <UserMenu />
-          </div>
-        </div>
-
-        {/* 本文 */}
-        {showProfile ? (
-          <ProfilePane />
-        ) : active && active.messages.length > 0 ? (
-          <MessageList messages={active.messages} />
-        ) : notFound ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="mx-auto w-full max-w-3xl px-6 md:px-8">
-              <div className="text-center space-y-3">
-                <h1 className="text-2xl md:text-3xl font-semibold">チャットが見つかりません</h1>
-                <p className="text-sm text-black/60 dark:text-white/60">存在しない、または権限がありません。別のチャットを選ぶか、新規作成してください。</p>
-                <div className="flex gap-2 justify-center">
-                  <button onClick={() => router.push('/')} className="rounded-lg border border-black/10 dark:border-white/10 px-3 py-1.5 text-sm hover:bg-black/5 dark:hover:bg-white/10">トップへ</button>
-                  <button onClick={handleNewChat} className="rounded-lg bg-black/80 text-white px-3 py-1.5 text-sm hover:bg-black">+ 新しいチャット</button>
+        <main className="flex-1 min-w-0 h-full">
+          {/* 本文 */}
+          {showProfile ? (
+            <ProfilePane />
+          ) : notFound ? (
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="mx-auto w-full max-w-3xl px-6 md:px-8">
+                <div className="text-center space-y-3">
+                  <h1 className="text-2xl md:text-3xl font-semibold">チャットが見つかりません</h1>
+                  <p className="text-sm text-black/60 dark:text-white/60">存在しない、または権限がありません。別のチャットを選ぶか、新規作成してください。</p>
+                  <div className="flex gap-2 justify-center">
+                    <button onClick={() => router.push('/')} className="rounded-lg border border-black/10 dark:border-white/10 px-3 py-1.5 text-sm hover:bg-black/5 dark:hover:bg-white/10">トップへ</button>
+                    <button onClick={handleNewChat} className="rounded-lg bg-black/80 text-white px-3 py-1.5 text-sm hover:bg-black">+ 新しいチャット</button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="mx-auto w-full max-w-3xl px-6 md:px-8">
-              <div className="text-center">
-                <h1 className="text-2xl md:text-3xl font-semibold mb-3">新しくチャットを作成</h1>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 入力欄 */}
-        {/* チャット入力欄：ended の場合は非表示にして通知バーを出す（日本語コメント）*/}
-        {!showProfile && active && active.status !== 'ended' && (
-          <ChatInput value={input} setValue={setInput} onSend={handleSend} disabled={sending} />
-        )}
-        {!showProfile && active && active.status === 'ended' && (
-          <div className="border-t border-black/10 dark:border-white/10 p-4 bg-white/60 dark:bg-white/5 backdrop-blur">
-            <div className="mx-auto w-full max-w-3xl flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="text-sm text-black/70 dark:text-white/70">
-                このチャットは終了しました（送信はできません）。
-              </div>
-              <button
-                onClick={handleNewChat}
-                className="inline-flex items-center gap-2 rounded-xl bg-black/80 text-white px-3 py-2 text-sm hover:bg-black"
-              >
-                + 新しいチャット
-              </button>
-            </div>
-          </div>
-        )}
-      </main>
+          ) : (
+            <SparChatbot
+              messages={active?.messages ?? []}
+              isLoading={sending}
+              hideInput={active?.status === 'ended'}
+              inputDisabled={sending}
+              onSendMessage={(text) => { setInput(text); handleSend(); }}
+            />
+          )}
+        </main>
+      </div>
     </div>
   );
 }
