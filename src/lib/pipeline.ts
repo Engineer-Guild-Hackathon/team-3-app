@@ -1,14 +1,42 @@
 import { getAOAI } from "./openai";
 import { getLogger } from "./logger";
-import { getPrompt, DEFAULT_JSON_MODE_SYSTEM } from "./prompts";
-import type { LlmMessage, JsonResult, RunChatOptions } from "@/types/llm";
+import { isRunChatOutput } from "./schemas";
+import type {
+  LlmMessage,
+  RunChatOptions,
+  RunChatInput,
+  RunChatOutput,
+  ChatTriState,
+  ConversationTurn,
+} from "@/types/llm";
 
-// 簡易会話メモリ（サーバプロセス内、セッションID単位）
-const conversationStore = new Map<string, LlmMessage[]>();
+// ------------------------------
+// ヘルパー（共通処理）
+// ------------------------------
 
-function clampHistory(arr: LlmMessage[], max: number): LlmMessage[] {
-  if (arr.length <= max) return arr;
-  return arr.slice(arr.length - max);
+/**
+ * JSON モードの要件を満たすため、メッセージ内に小文字 "json" が含まれるよう保証する。
+ * 必要なら先頭に system:"json" を注入する。
+ */
+
+/**
+ * runChat 用の system プロンプトを組み立てる
+ */
+function buildRunChatSystemPrompt(subject: string, theme: string, status: ChatTriState): string {
+  return `You are a helpful assistant. Subject: ${subject}. Theme: ${theme}. Status: ${status}. Answer clearly in plain text.`;
+}
+
+/**
+ * { assistant, user } のターン配列を ChatCompletion メッセージ配列へ展開する
+ */
+function mapTurnsToMessages(turns: ConversationTurn[]): LlmMessage[] {
+  const out: LlmMessage[] = [];
+  for (let i = 0; i < turns.length; i++) {
+    const t = turns[i];
+    if (t?.assistant) out.push({ role: "assistant", content: String(t.assistant) });
+    if (t?.user) out.push({ role: "user", content: String(t.user) });
+  }
+  return out;
 }
 
 /**
@@ -16,68 +44,57 @@ function clampHistory(arr: LlmMessage[], max: number): LlmMessage[] {
  * - JSON モード（response_format: json_object）で応答を取得
  * - 先頭に JSON 専用システム指示を注入（オプション）
  */
-export async function runChatWithTools(
-  initialMessages: LlmMessage[],
-  options: RunChatOptions = { injectJsonSystemPrompt: true }
-): Promise<JsonResult> {
+/**
+ * JSON モードでの 1 回分の応答取得
+ * - 入力: 任意の ChatCompletion メッセージ列
+ * - 出力: { json, text }（JSON はオブジェクト形状に正規化）
+ */
+
+/**
+ * runChat: 型指定の入出力でテキスト回答を得る関数
+ * - 入力: { chatId, subject, theme, history[], status }
+ * - 出力: { chatId, answer, status }
+ * - JSON モードは使わず、プレーンテキストで回答
+ */
+/**
+ * 型付きの runChat
+ * - 入力: RunChatInput（chatId/subject/theme/history/status）
+ * - 出力: RunChatOutput（chatId/answer/status）
+ * - 返却形は isRunChatOutput で検証してから返す
+ */
+export async function runChat(input: RunChatInput, opts: Partial<RunChatOptions> = {}): Promise<RunChatOutput> {
   const log = getLogger("pipeline");
-  const sessionId = options.sessionId ?? "default";
-  const maxHistory = Math.max(1, options.maxHistory ?? 20);
-  log.info({ msg: "start", mode: "json", messageCount: initialMessages.length, sessionId, maxHistory });
+  const model = process.env.AZURE_OPENAI_DEPLOYMENT!;
 
-  const model = process.env.AZURE_OPENAI_DEPLOYMENT!; // デプロイメント名
+  // ステータスを -1 | 0 | 1 に正規化し、以降で使用
+  const inputStatus: ChatTriState = (input.status < 0 ? -1 : input.status > 0 ? 1 : 0) as ChatTriState;
 
-  // JSONモード利用時は、メッセージ内に 'json' という語を含める必要があるため
-  // 必要に応じて先頭へシステムメッセージを注入する
-  const jsonSystem: LlmMessage | null = options.injectJsonSystemPrompt
-    ? {
-        role: "system",
-        content: await getPrompt("system/json-mode", DEFAULT_JSON_MODE_SYSTEM),
-      }
-    : null;
+  const sessionId = opts.sessionId ?? `chat:${input.chatId}`;
+  const requestId = opts.requestId ?? crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 
-  // 入力メッセージをそのままセッション履歴へ反映し、上限でクリップ
-  const clientHistory = clampHistory([...initialMessages], maxHistory);
-  conversationStore.set(sessionId, clientHistory);
+  log.info({ msg: "runChat:start", sessionId, requestId, chatId: input.chatId, status: inputStatus });
 
-  // 送信用メッセージ = （JSONモード用システム）+（保持中の履歴）
-  const history = conversationStore.get(sessionId) ?? [];
-  const messages: LlmMessage[] = jsonSystem ? [jsonSystem, ...history] : [...history];
+  // subject/theme を system に集約。history は {assistant,user} のペアを assistant→user の順で展開
+  const sys = buildRunChatSystemPrompt(input.subject, input.theme, inputStatus);
+  const turns: ConversationTurn[] = input.history ?? [];
+  const messages: LlmMessage[] = [{ role: "system", content: sys }, ...mapTurnsToMessages(turns)];
+  log.debug({ msg: "runChat:history_mapped", turns: turns.length, messages: messages.length });
 
-  // Azure OpenAI JSON モード要件：メッセージ内に 'json' を含める必要があるため保険をかける
-  if (!messages.some((m) => m?.content?.toLowerCase?.().includes("json"))) {
-    messages.unshift({ role: "system", content: "json" });
+  const t0 = Date.now();
+  const resp = await getAOAI().chat.completions.create({ model, messages } as any);
+  const dt = Date.now() - t0;
+  const answer = resp.choices?.[0]?.message?.content?.trim?.() ?? "";
+
+  // 回答本文は長くなるため、ログには文字数のみを出力
+  log.info({ msg: "runChat:final", sessionId, requestId, chatId: input.chatId, ms: dt, chars: answer.length });
+
+  // 成功: 1、未回答: 0、例外時: -1（catch 側）
+  const out: RunChatOutput = { chatId: input.chatId, answer, status: answer ? 1 : 0 };
+  if (isRunChatOutput(out)) {
+    log.debug({ msg: "runChat:output_valid", chatId: out.chatId, status: out.status, hasAnswer: out.answer.length > 0 });
+    return out;
   }
-
-  // 単発の補完（JSONモード）
-  const resp = await getAOAI().chat.completions.create({
-    model,
-    messages,
-    // JSONモード：常に有効なJSONオブジェクトを返す
-    response_format: { type: "json_object" },
-  } as any);
-
-  const raw = resp.choices?.[0]?.message?.content ?? "{}";
-  log.debug({ msg: "received", bytes: Buffer.byteLength(raw, "utf8") });
-
-  // パース失敗時も堅牢にフォールバック
-  let parsed: Record<string, unknown> = {};
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    // 念のためトリム等を試し、それでも失敗したら空オブジェクト
-    try {
-      parsed = JSON.parse(raw.trim());
-    } catch {
-      parsed = {};
-    }
-  }
-
-  const text = JSON.stringify(parsed, null, 2);
-  // 応答（assistant）を履歴へ追記し、上限でクリップ
-  const after = clampHistory([...(conversationStore.get(sessionId) ?? []), { role: "assistant", content: raw }], maxHistory);
-  conversationStore.set(sessionId, after);
-
-  log.info({ msg: "final", ok: true, model, hasSystem: !!jsonSystem, sessionId, historySize: after.length });
-  return { json: parsed, text };
+  // フォールバック（ここに来ない想定だが、安全のため）
+  log.error({ msg: "runChat:output_invalid", chatId: input.chatId });
+  return { chatId: input.chatId, answer: String(answer ?? ""), status: answer ? 1 : 0 };
 }

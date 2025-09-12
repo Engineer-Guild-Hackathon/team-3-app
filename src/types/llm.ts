@@ -20,4 +20,29 @@ export type JsonResult<T extends Record<string, unknown> = Record<string, unknow
 export type RunChatOptions = JsonModeOptions & {
   sessionId?: string; // セッションID（未指定時は "default"）
   maxHistory?: number; // 直近のメッセージ件数上限（デフォルト 20）
+  requestId?: string; // 相関ID（API から受け取る）
+};
+
+export type ChatTriState = -1 | 0 | 1;
+
+export type ConversationTurn = {
+  // assistant: LLM（アシスタント）が送信したメッセージ
+  assistant: string;
+  // user: ユーザーが送信したメッセージ
+  user: string;
+};
+
+export type RunChatInput = {
+  chatId: number; // 会話ID（数値）
+  subject: string; // 題目
+  theme: string; // テーマ
+  // 履歴は { assistant, user } の配列（時系列順）
+  history: ConversationTurn[];
+  status: ChatTriState; // -1 | 0 | 1
+};
+
+export type RunChatOutput = {
+  chatId: number; // 入力と同じ chatId を返す
+  answer: string; // LLM の出力文章
+  status: ChatTriState; // -1 | 0 | 1
 };

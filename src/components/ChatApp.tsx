@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import type { ChatMessage, ChatSession } from "@/types/chat";
+import type { ConversationTurn, RunChatInput } from "@/types/llm";
 
 import ChatInput from "./chat/ChatInput";
 import MessageList from "./chat/MessageList";
@@ -153,10 +154,48 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
     setSending(true);
     try {
       const current = nextSessions.find((s) => s.id === active.id)!;
-      // API へ渡す最小メッセージ形式に変換（セッションIDを付与）
-      const payload = {
-        sessionId: current.id,
-        messages: current.messages.map((m) => ({ role: m.role, content: m.content })),
+
+      // 数値 chatId へ変換（UUID→32bit hash）
+      const chatId = (() => {
+        const str = current.id;
+        let h = 0;
+        for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
+        return Math.abs(h);
+      })();
+
+      // 履歴を { assistant, user } のターン配列へ変換
+      const toTurns = (msgs: ChatMessage[]): ConversationTurn[] => {
+        const turns: ConversationTurn[] = [];
+        let pendingA = "";
+        let pendingU = "";
+        for (const m of msgs) {
+          if (m.role === "assistant") {
+            if (pendingA || pendingU) {
+              turns.push({ assistant: pendingA, user: pendingU });
+              pendingA = ""; pendingU = "";
+            }
+            pendingA = m.content;
+          } else if (m.role === "user") {
+            if (pendingU) {
+              turns.push({ assistant: pendingA, user: pendingU });
+              pendingA = ""; pendingU = "";
+            }
+            pendingU = m.content;
+            // assistant が未到着でも一旦ペアとして確定
+            turns.push({ assistant: pendingA, user: pendingU });
+            pendingA = ""; pendingU = "";
+          }
+        }
+        if (pendingA || pendingU) turns.push({ assistant: pendingA, user: pendingU });
+        return turns;
+      };
+
+      const payload: RunChatInput = {
+        chatId,
+        subject: current.title || "Chat",
+        theme: "default",
+        history: toTurns(current.messages),
+        status: 0,
       };
 
       const res = await fetch("/api/chat", {
@@ -170,11 +209,11 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         throw new Error(data?.error ?? `HTTP ${res.status}`);
       }
 
-      // 3) 応答メッセージを追記
+      // 3) 応答メッセージを追記（RunChatOutput 優先、旧API互換も対応）
       const assistant: ChatMessage = {
         id: rid(),
         role: "assistant",
-        content: String(data.result?.text ?? ""),
+        content: String(data.result?.answer ?? data.result?.text ?? ""),
         createdAt: Date.now(),
       };
       const withAssistant = nextSessions.map((s) =>
