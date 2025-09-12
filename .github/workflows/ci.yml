@@ -36,10 +36,14 @@ jobs:
 
       # ESLint（スクリプトが無ければ無視）
       - name: Run ESLint
+        env:
+          NEXT_PRIVATE_SKIP_ENV_LOADING: '1'
         run: npm run -s lint --if-present
 
       # プロジェクト標準の型チェック（lint 相当の静的検査）
       - name: Run Type Check
+        env:
+          NEXT_PRIVATE_SKIP_ENV_LOADING: '1'
         run: npm run -s typecheck
 
   test:
@@ -59,6 +63,8 @@ jobs:
         run: npm ci
 
       - name: Run tests (if present)
+        env:
+          NEXT_PRIVATE_SKIP_ENV_LOADING: '1'
         run: npm test --silent --if-present
 
   build:
@@ -84,4 +90,67 @@ jobs:
       - name: Build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
+          NEXT_PRIVATE_SKIP_ENV_LOADING: '1'
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          ALLOWED_EMAIL_DOMAIN: ${{ secrets.ALLOWED_EMAIL_DOMAIN }}
+          ALLOWED_EMAILS: ${{ secrets.ALLOWED_EMAILS }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         run: npm run -s build
+
+  migrate:
+    name: DB Migrate (PostgreSQL 17)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: dev
+          POSTGRES_PASSWORD: devpass
+          POSTGRES_DB: team3app_ci
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd="pg_isready -U dev -d team3app_ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Wait for Postgres to be ready
+        env:
+          PGPASSWORD: devpass
+        run: |
+          for i in {1..60}; do
+            pg_isready -h localhost -p 5432 -U dev -d team3app_ci && exit 0
+            sleep 1
+          done
+          echo "Postgres not ready" >&2
+          exit 1
+
+      - name: Run Drizzle migrations
+        env:
+          DATABASE_URL: postgres://dev:devpass@localhost:5432/team3app_ci?sslmode=disable
+          NEXT_TELEMETRY_DISABLED: '1'
+          NEXT_PRIVATE_SKIP_ENV_LOADING: '1'
+        run: npm run -s db:migrate
