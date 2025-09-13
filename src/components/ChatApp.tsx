@@ -10,7 +10,6 @@ import type { ConversationTurn, RunChatInput } from "@/types/llm";
 import SparSidebar from "./spar/ChatSidebar";
 import SparChatbot from "./spar/Chatbot";
 import SparProfile from "./spar/Profile";
-import UserMenu from "@/components/auth/UserMenu";
 
 // UUID生成（衝突リスクが非常に低い）
 const rid = () => crypto.randomUUID();
@@ -34,7 +33,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   const [activeId, setActiveId] = useState<string | null>(initialId ?? null);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [bootIntroDone, setBootIntroDone] = useState(false); // 初回LLM応答の自動生成フラグ（互換残し）
+  // bootIntroDone は廃止（per-chat フラグで管理）
   // 新規作成直後のチャットにのみ自動イントロを許可（既存チャットを開いた際の誤送信を防止）
   const [pendingAutoIntroId, setPendingAutoIntroId] = useState<string | null>(null);
   // チャットごとの自動イントロ送信済みフラグ
@@ -485,7 +484,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
       }
     };
     autoIntro();
-  }, [active, sending, pendingAutoIntroId]);
+  }, [active, sending, pendingAutoIntroId, fetchSubjectName, fetchTopicName]);
 
   // 予備：提案カードの選択ハンドラ（未使用）
 
