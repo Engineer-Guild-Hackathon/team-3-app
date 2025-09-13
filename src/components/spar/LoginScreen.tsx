@@ -2,18 +2,43 @@
 
 // SPAR のログインカードUIを再現（日本語コメント）
 import { motion } from "motion/react";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 
 type Props = {
   onGoogleLogin: () => void;
   disabled?: boolean;
   errorText?: string | null;
+  /**
+   * ブランド名（カード見出しに表示）
+   * 例: "SPAR"
+   */
+  brandName?: string;
+  /**
+   * ロゴのベースパス（public 配下、拡張子省略可）
+   * 例: "/SPAR_logo" または "/SPAR_logo.png"
+   */
+  logoBasePath?: string;
 };
 
-export default function LoginScreen({ onGoogleLogin, disabled = false, errorText = null }: Props) {
+export default function LoginScreen({ onGoogleLogin, disabled = false, errorText = null, brandName = "AI Assistant", logoBasePath }: Props) {
   // Hydration mismatch を避けるため、マウント後にのみランダム系の描画を行う
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  // ロゴ読み込みのフォールバック制御（日本語コメント）
+  const exts = [".svg", ".png", ".jpg", ".jpeg", ".webp"];
+  const hasExt = !!logoBasePath && /\.[a-zA-Z0-9]+$/.test(logoBasePath);
+  const candidates = logoBasePath
+    ? (hasExt ? [logoBasePath] : exts.map((e) => `${logoBasePath}${e}`))
+    : [];
+  const [logoIdx, setLogoIdx] = useState(0);
+  const [logoFailed, setLogoFailed] = useState(false);
+  const logoSrc = candidates[logoIdx];
+  const handleLogoError = () => {
+    // 次の拡張子候補を試し、尽きたら失敗とする
+    if (logoIdx < candidates.length - 1) setLogoIdx((i) => i + 1);
+    else setLogoFailed(true);
+  };
   return (
     <div className="h-full flex items-center justify-center p-4">
       <motion.div
@@ -28,23 +53,36 @@ export default function LoginScreen({ onGoogleLogin, disabled = false, errorText
           <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-purple-400/20 rounded-full blur-2xl" />
         </div>
 
-        <div className="relative z-10 p-8">
-          {/* ロゴ/タイトル */}
-          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }} className="text-center mb-8">
-            <div className="w-20 h-20 mx-auto mb-6 backdrop-blur-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-white/30 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/10">
-              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        <div className="relative z-10 px-8 py-4">
+          {/* ロゴのみ大きく表示（背景ボックス削除）*/}
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="text-center mb-1"
+          >
+            {logoSrc && !logoFailed ? (
+              <Image
+                src={logoSrc}
+                alt={`${brandName} logo`}
+                width={320}
+                height={320}
+                className="w-72 h-72 sm:w-80 sm:h-80 mx-auto object-contain"
+                onError={() => handleLogoError()}
+                priority
+              />
+            ) : (
+              <svg className="w-32 h-32 sm:w-40 sm:h-40 mx-auto text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a 9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
-            </div>
-            <h1 className="text-2xl font-medium text-gray-800 mb-2">AI Assistant</h1>
-            <p className="text-gray-600">Liquid Glass Experience</p>
+            )}
           </motion.div>
 
           {/* ウェルカム文 */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }} className="text-center mb-8">
-            <h2 className="text-xl font-medium text-gray-800 mb-3">ようこそ</h2>
-            <p className="text-gray-600 leading-relaxed">
-              AIアシスタントとの新しい体験を始めましょう。<br />
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.28, ease: [0.25, 0.46, 0.45, 0.94] }} className="text-center -mt-1 mb-3">
+            <h2 className="text-xl font-medium text-gray-800 mb-1">ようこそ</h2>
+            <p className="text-gray-600 leading-snug">
+              {brandName} で学びを始めよう。<br />
               まずはGoogleアカウントでログインしてください。
             </p>
           </motion.div>

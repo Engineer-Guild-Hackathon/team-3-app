@@ -28,6 +28,9 @@ export default function LoginClient() {
           onGoogleLogin={onGoogle}
           disabled={hasGoogle === false}
           errorText={hasGoogle === false ? "認証プロバイダが未設定です。管理者にお問い合わせください。" : null}
+          // SPAR ブランド適用（日本語コメント）
+          brandName="SPAR"
+          logoBasePath="/SPAR_logo.png"
         />
       </div>
     </div>

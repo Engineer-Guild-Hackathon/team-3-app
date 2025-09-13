@@ -23,7 +23,7 @@ export default function ChatHeader({ subject, topic }: Props) {
             <Bot className="w-6 h-6 text-blue-600" />
           </div>
           <div>
-            <h1 className="text-lg font-medium text-gray-800">AI Assistant</h1>
+            <h1 className="text-lg font-medium text-gray-800">Student AI</h1>
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <Circle className="w-2 h-2 fill-green-500 text-green-500" />
               <span>Online</span>
