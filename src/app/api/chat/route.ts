@@ -96,18 +96,33 @@ export async function POST(req: Request) {
           }
         }
 
-        // アシスタント応答
+        // アシスタント応答（直近が assistant の場合は破棄して二連続を防止）
+        let assistantPersisted = true;
         const assistantText = String(out.answer ?? '').trim();
         if (assistantText) {
-          // 直近の assistant メッセージと重複する場合は挿入をスキップ（簡易重複防止）
-          const lastA = await db!
-            .select({ content: messages.content })
+          // 直近メッセージの役割を確認
+          const lastMsg = await db!
+            .select({ role: messages.role, content: messages.content })
             .from(messages)
-            .where(and(eq(messages.chatId, chatUuid), eq(messages.role, 'assistant')))
+            .where(eq(messages.chatId, chatUuid))
             .orderBy(desc(messages.createdAt))
             .limit(1);
-          if (!(lastA[0]?.content === assistantText)) {
-            await db!.insert(messages).values({ chatId: chatUuid, role: 'assistant', content: assistantText });
+          if (lastMsg[0]?.role === 'assistant') {
+            assistantPersisted = false; // 破棄
+          } else {
+            // 直近の assistant と内容が同一なら破棄（保険）
+            const lastA = await db!
+              .select({ content: messages.content })
+              .from(messages)
+              .where(and(eq(messages.chatId, chatUuid), eq(messages.role, 'assistant')))
+              .orderBy(desc(messages.createdAt))
+              .limit(1);
+            if (lastA[0]?.content === assistantText) {
+              assistantPersisted = false;
+            } else {
+              await db!.insert(messages).values({ chatId: chatUuid, role: 'assistant', content: assistantText });
+              assistantPersisted = true;
+            }
           }
         }
 
@@ -117,6 +132,8 @@ export async function POST(req: Request) {
           .update(chats)
           .set({ updatedAt: sql`now()`, ...(endedOut ? { status: 'ended' as const } : {}) })
           .where(and(eq(chats.id, chatUuid), eq(chats.userId, userId)));
+        // out に副作用メタを埋め込む（クライアントで重複描画を防止するため）
+        (out as any).meta = { assistantPersisted };
       } catch (e: any) {
         log.error({ msg: "persist_failed", err: String(e?.message ?? e) });
       }
@@ -127,7 +144,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Invalid RunChatOutput" }, { status: 500 });
     }
     log.info({ msg: "response(runChat)", chatId: out.chatId, chars: out.answer.length, status: out.status });
-    return NextResponse.json({ ok: true, result: out }, { status: 200 });
+    return NextResponse.json({ ok: true, result: out, meta: (out as any).meta }, { status: 200 });
   } catch (e: any) {
     const log = getLogger("api:chat");
     log.error({ msg: "failed", err: String(e?.message ?? e) });

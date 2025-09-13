@@ -48,3 +48,5 @@ next-env.d.ts
 
 # cach
 .cache/
+
+_ui_sample/

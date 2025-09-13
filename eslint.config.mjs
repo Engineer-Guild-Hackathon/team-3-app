@@ -25,6 +25,7 @@ export default [
       "coverage/",
       "next-env.d.ts",
       "eslint.config.mjs",
+      "_ui_sample/**",
     ],
   },
 
@@ -65,4 +66,3 @@ export default [
     },
   }),
 ];
-

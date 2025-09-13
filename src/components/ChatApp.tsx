@@ -1,22 +1,22 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { ChatMessage, ChatSession } from "@/types/chat";
 import type { ConversationTurn, RunChatInput } from "@/types/llm";
 
-import ChatInput from "./chat/ChatInput";
-import MessageList from "./chat/MessageList";
-import Sidebar from "./sidebar/Sidebar";
-import ProfilePane from "@/components/ProfilePane";
-import UserMenu from "@/components/auth/UserMenu";
+import SparSidebar from "./spar/ChatSidebar";
+import SparChatbot from "./spar/Chatbot";
+import SparProfile from "./spar/Profile";
 
 // UUID生成（衝突リスクが非常に低い）
 const rid = () => crypto.randomUUID();
 
 // LocalStorage キー
 const STORAGE_KEY = "chat:sessions:v1";
+const AUTO_INTRO_FLAG_PREFIX = "chat:auto-intro:"; // localStorage フラグ（新規作成直後の自動送信許可）
 const UI_SIDEBAR_OPEN_KEY = "ui:sidebar:open:v1";
 
 /**
@@ -33,7 +33,13 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   const [activeId, setActiveId] = useState<string | null>(initialId ?? null);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [bootIntroDone, setBootIntroDone] = useState(false); // 初回LLM応答の自動生成フラグ
+  // bootIntroDone は廃止（per-chat フラグで管理）
+  // 新規作成直後のチャットにのみ自動イントロを許可（既存チャットを開いた際の誤送信を防止）
+  const [pendingAutoIntroId, setPendingAutoIntroId] = useState<string | null>(null);
+  // チャットごとの自動イントロ送信済みフラグ
+  const autoIntroSent = useRef<Record<string, boolean>>({});
+  // 自動イントロ送信の同時実行防止（開発時の StrictMode 二重実行も抑止）
+  const autoIntroInFlight = useRef<Record<string, boolean>>({});
   // サイドバーのUI状態（日本語コメント）
   const [sidebarOpen, setSidebarOpen] = useState(true);
   // APIからの読み込み済みメッセージ管理（重複フェッチ防止）
@@ -60,6 +66,25 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
     }
     return data;
   }, []);
+
+  // subject/topic 名称の解決ヘルパー（必要時のみ取得）
+  const fetchSubjectName = useCallback(async (sid?: string): Promise<string | undefined> => {
+    if (!sid) return undefined;
+    try {
+      const data = await fetchJson('/api/subjects');
+      const items = (data?.result?.items ?? []) as Array<{ id: string; name: string }>;
+      return items.find((x) => x.id === sid)?.name;
+    } catch { return undefined; }
+  }, [fetchJson]);
+
+  const fetchTopicName = useCallback(async (sid?: string, tid?: string): Promise<string | undefined> => {
+    if (!sid || !tid) return undefined;
+    try {
+      const data = await fetchJson(`/api/subjects/${sid}/topics`);
+      const items = (data?.result?.items ?? []) as Array<{ id: string; name: string }>;
+      return items.find((x) => x.id === tid)?.name;
+    } catch { return undefined; }
+  }, [fetchJson]);
 
   // 空のセッションを作成
   const createSession = useCallback((fixedId?: string): ChatSession => {
@@ -95,6 +120,11 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
               ? initialId
               : (showProfileOnEmpty ? null : (parsed[0]?.id ?? null))
           );
+          // 新規作成直後の自動イントロフラグ（ルート遷移跨ぎのためLSで受け渡し）
+          if (initialId) {
+            const flag = localStorage.getItem(AUTO_INTRO_FLAG_PREFIX + initialId);
+            if (flag === "1") setPendingAutoIntroId(initialId);
+          }
         }
       } else {
         if (initialId) {
@@ -138,12 +168,16 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
     const run = async () => {
       try {
         const data = await fetchJson('/api/chats');
-        const items = (data?.result?.items ?? []) as Array<{ id: string; title: string; status: 'in_progress'|'ended'; updatedAt: string | number }>;
+        const items = (data?.result?.items ?? []) as Array<{ id: string; title: string; status: 'in_progress'|'ended'; updatedAt: string | number; subjectId?: string; subjectName?: string; topicId?: string; topicName?: string }>;
         if (!Array.isArray(items) || items.length === 0) return;
         const mapped: ChatSession[] = items.map((r) => ({
           id: String(r.id),
           title: String(r.title ?? "(無題)"),
           status: (r.status ?? 'in_progress'),
+          subjectId: r.subjectId,
+          subjectName: r.subjectName,
+          topicId: r.topicId,
+          topicName: r.topicName,
           messages: [],
           updatedAt: typeof r.updatedAt === 'number' ? r.updatedAt : new Date(r.updatedAt).getTime(),
         }));
@@ -171,15 +205,20 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   const active = useMemo(() => sessions.find((s) => s.id === activeId) ?? null, [sessions, activeId]);
 
   // 新規チャット
-  const handleNewChat = async () => {
+  const handleNewChat = async (opts?: { subjectId?: string; topicId?: string; prefTopicName?: string }) => {
     try {
       // API で作成（失敗時はローカルフォールバック）
-      const data = await fetchJson('/api/chats', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-      const row = data?.result as { id: string; title: string; status?: 'in_progress'|'ended'; updatedAt: string | number };
-      const s: ChatSession = { id: row.id, title: row.title ?? '新しいチャット', status: row.status ?? 'in_progress', messages: [], updatedAt: typeof row.updatedAt === 'number' ? row.updatedAt : new Date(row.updatedAt).getTime() };
+      const body: any = {};
+      if (opts?.subjectId) body.subjectId = opts.subjectId;
+      if (opts?.topicId) body.topicId = opts.topicId;
+      const data = await fetchJson('/api/chats', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const row = data?.result as { id: string; title: string; status?: 'in_progress'|'ended'; updatedAt: string | number; subjectId?: string; topicId?: string };
+      const s: ChatSession = { id: row.id, title: row.title ?? '新しいチャット', status: row.status ?? 'in_progress', subjectId: row.subjectId, topicId: row.topicId, prefTopicName: opts?.prefTopicName, messages: [], updatedAt: typeof row.updatedAt === 'number' ? row.updatedAt : new Date(row.updatedAt).getTime() };
       const next = [s, ...sessions];
       setSessions(next);
       setActiveId(s.id);
+      try { localStorage.setItem(AUTO_INTRO_FLAG_PREFIX + s.id, "1"); } catch {}
+      setPendingAutoIntroId(s.id);
       setNotFound(false);
       persist(next);
       setInput("");
@@ -189,6 +228,8 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
       const next = [newSession, ...sessions];
       setSessions(next);
       setActiveId(newSession.id);
+      try { localStorage.setItem(AUTO_INTRO_FLAG_PREFIX + newSession.id, "1"); } catch {}
+      setPendingAutoIntroId(newSession.id);
       setNotFound(false);
       persist(next);
       setInput("");
@@ -197,15 +238,16 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   };
 
   // 送信処理（API接続版）
-  const handleSend = async () => {
+  const handleSend = async (textArg?: string) => {
+    const text = (textArg ?? input).trim();
     // ガード（ended の場合は送信不可）
-    if (!active || !input.trim() || sending || active.status === 'ended') return;
+    if (!active || !text || sending || active.status === 'ended') return;
 
     // 1) ユーザーメッセージをセッションに反映
     const userMsg: ChatMessage = {
       id: rid(),
       role: "user",
-      content: input.trim(),
+      content: text,
       createdAt: Date.now(),
     };
 
@@ -263,10 +305,29 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         return turns;
       };
 
+      // 教科/分野ラベルの解決（未解決なら API から取得）
+      let subj = current.subjectName || (current.subjectId ? '' : '数学');
+      let topic = current.topicName || current.prefTopicName || '';
+      if (!subj && current.subjectId) {
+        const name = await fetchSubjectName(current.subjectId);
+        if (name) {
+          subj = name;
+          // セッションにも反映
+          setSessions((prev) => prev.map((s) => s.id === current.id ? { ...s, subjectName: name } : s));
+        }
+      }
+      if (!topic && current.subjectId && current.topicId) {
+        const tname = await fetchTopicName(current.subjectId, current.topicId);
+        if (tname) {
+          topic = tname;
+          setSessions((prev) => prev.map((s) => s.id === current.id ? { ...s, topicName: tname } : s));
+        }
+      }
+      const themeDefault = (subj || '数学') === '英語' ? '仮定法' : '確率';
       const payload: RunChatInput = {
         chatId,
-        subject: "数学",
-        theme: "三角関数",
+        subject: subj || "数学",
+        theme: topic || themeDefault,
         clientSessionId: current.id,
         history: toTurns(current.messages),
       };
@@ -280,14 +341,25 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         content: String(data.result?.answer ?? data.result?.text ?? ""),
         createdAt: Date.now(),
       };
+      const assistantPersisted = (data.meta?.assistantPersisted ?? data.result?.meta?.assistantPersisted) !== false;
+      const lastLocal = nextSessions.find((s) => s.id === active.id)?.messages?.at(-1);
+      const lastLocalIsAssistant = lastLocal?.role === 'assistant';
       const ended = (data.result?.status ?? 0) === -1 ? false : true;
-      const withAssistant = nextSessions.map((s) =>
-        s.id === active.id
-          ? { ...s, status: ended ? 'ended' : (s.status ?? 'in_progress'), messages: [...s.messages, assistant], updatedAt: Date.now() }
-          : s
-      );
-      setSessions(withAssistant);
-      persist(withAssistant);
+      // DB 側で破棄された場合でも、ローカルの直近が assistant でなければ UI は表示する
+      if ((assistantPersisted || !lastLocalIsAssistant) && assistant.content) {
+        const withAssistant = nextSessions.map((s) =>
+          s.id === active.id
+            ? { ...s, status: ended ? 'ended' : (s.status ?? 'in_progress'), messages: [...s.messages, assistant], updatedAt: Date.now() }
+            : s
+        );
+        setSessions(withAssistant);
+        persist(withAssistant);
+      } else {
+        // 破棄された場合でもステータスのみ更新（必要なら）
+        const onlyStatus = nextSessions.map((s) => s.id === active.id ? { ...s, status: ended ? 'ended' : (s.status ?? 'in_progress'), updatedAt: Date.now() } : s);
+        setSessions(onlyStatus);
+        persist(onlyStatus);
+      }
       loadedMessages.current[active.id] = true; // 以後API再フェッチ不要
     } catch (e: any) {
       // エラー時はメッセージとして表示
@@ -338,20 +410,46 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
     run();
   }, [activeId, fetchJson, sessions]);
 
-  // 新規/空チャットのとき最初に LLM 応答を自動生成（subject=物理, theme=加速度）
+  // 新規作成直後のみ最初に LLM 応答を自動生成（既存チャットを開いたときは送信しない）
   useEffect(() => {
     const autoIntro = async () => {
-      if (!active || sending || bootIntroDone) return;
-      if (active.messages.length > 0) return;
+      if (!active || sending) return;
+      if (!pendingAutoIntroId || pendingAutoIntroId !== active.id) return;
+      if (autoIntroSent.current[active.id]) return;
+      if (autoIntroInFlight.current[active.id]) return;
+      // 既に assistant が最後のメッセージなら送信しない
+      if (active.messages.length > 0) {
+        const last = active.messages[active.messages.length - 1];
+        if (last?.role === 'assistant') return;
+      }
+      autoIntroInFlight.current[active.id] = true; // ここでロック
       setSending(true);
       try {
         const chatId = (() => {
           const str = active.id; let h = 0; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0; return Math.abs(h);
         })();
+        // 教科/分野ラベルの解決
+        let subj2 = active.subjectName || (active.subjectId ? '' : '数学');
+        let topic2 = active.topicName || active.prefTopicName || '';
+        if (!subj2 && active.subjectId) {
+          const name = await fetchSubjectName(active.subjectId);
+          if (name) {
+            subj2 = name;
+            setSessions((prev) => prev.map((s) => s.id === active.id ? { ...s, subjectName: name } : s));
+          }
+        }
+        if (!topic2 && active.subjectId && active.topicId) {
+          const tname = await fetchTopicName(active.subjectId, active.topicId);
+          if (tname) {
+            topic2 = tname;
+            setSessions((prev) => prev.map((s) => s.id === active.id ? { ...s, topicName: tname } : s));
+          }
+        }
+        const themeDefault2 = (subj2 || '数学') === '英語' ? '仮定法' : '確率';
         const payload = {
           chatId,
-          subject: "数学",
-          theme: "三角関数",
+          subject: subj2 || "数学",
+          theme: topic2 || themeDefault2,
           clientSessionId: active.id,
           history: [],
         } as RunChatInput;
@@ -359,21 +457,34 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data?.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
         const assistant: ChatMessage = { id: rid(), role: "assistant", content: String(data.result?.answer ?? data.result?.text ?? ""), createdAt: Date.now() };
+        const assistantPersisted = (data.meta?.assistantPersisted ?? data.result?.meta?.assistantPersisted) !== false;
         setSessions((prev) => {
           const ended = (data.result?.status ?? 0) === -1 ? false : true;
-          const next = prev.map((s) => s.id === active.id ? { ...s, status: ended ? 'ended' : (s.status ?? 'in_progress'), messages: [...s.messages, assistant], updatedAt: Date.now(), title: s.title === "新しいチャット" && assistant.content ? assistant.content.slice(0, 24) : s.title } : s);
+          const next = prev.map((s) => {
+            if (s.id !== active.id) return s;
+            const base = { ...s, status: ended ? 'ended' : (s.status ?? 'in_progress'), updatedAt: Date.now() } as ChatSession;
+            const lastLocal2 = s.messages.at(-1);
+            const lastLocalIsAssistant2 = lastLocal2?.role === 'assistant';
+            if ((assistantPersisted || !lastLocalIsAssistant2) && assistant.content) {
+              return { ...base, messages: [...s.messages, assistant], title: s.title === "新しいチャット" && assistant.content ? assistant.content.slice(0, 24) : s.title };
+            }
+            return base;
+          });
           try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
           return next;
         });
-        setBootIntroDone(true);
+        autoIntroSent.current[active.id] = true;
+        try { localStorage.removeItem(AUTO_INTRO_FLAG_PREFIX + active.id); } catch {}
+        setPendingAutoIntroId(null);
       } catch (_) {
         // 失敗時は黙ってスキップ
       } finally {
+        delete autoIntroInFlight.current[active.id];
         setSending(false);
       }
     };
     autoIntro();
-  }, [active, sending, bootIntroDone]);
+  }, [active, sending, pendingAutoIntroId, fetchSubjectName, fetchTopicName]);
 
   // 予備：提案カードの選択ハンドラ（未使用）
 
@@ -385,124 +496,64 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   const showProfile = showProfileOnEmpty && (!active || active.messages.length === 0);
 
   return (
-    <div className="flex h-screen">
-      <Sidebar
-        sessions={sessions}
-        onNewChat={handleNewChat}
-        onSelectChat={(id) => setActiveId(id)}
-        onRename={async (id, title) => {
-          // 名称変更（日本語コメント）
-          try {
-            await fetchJson(`/api/chats/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
-          } catch {}
-          setSessions((prev) => {
-            const next = prev.map((s) => s.id === id ? { ...s, title, updatedAt: Date.now() } : s);
-            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
-            return next;
-          });
-        }}
-        onDelete={async (id) => {
-          // 削除処理：アクティブ削除時は次のセッションへ遷移、無ければ新規作成（日本語コメント）
-          try { await fetchJson(`/api/chats/${id}`, { method: 'DELETE' }); } catch {}
-          const remained = sessions.filter((s) => s.id !== id);
-          if (remained.length === 0) {
-            const created = createSession();
-            const next = [created];
-            setSessions(next);
-            setActiveId(created.id);
-            setNotFound(false);
-            persist(next);
-            router.replace(`/chats/${created.id}`);
-            return;
-          }
-          setSessions(remained);
-          persist(remained);
+    <div className="h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 overflow-hidden">
+      {/* 背景のアニメーション要素（日本語コメント）*/}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-400/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-pink-400/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
+      </div>
 
-          if (activeId === id) {
-            const nextActive = remained[0].id;
-            setActiveId(nextActive);
-            setNotFound(false);
-            router.replace(`/chats/${nextActive}`);
-          }
-        }}
-        activeId={activeId ?? undefined}
-        collapsed={!sidebarOpen}
-        onToggle={() => setSidebarOpen((v) => !v)}
-      />
+      <div className="relative z-10 h-full flex gap-4 p-4">
+        <SparSidebar
+          sessions={sessions}
+          activeId={activeId ?? undefined}
+          onNewChat={handleNewChat}
+          onSelectChat={(id) => {
+            setActiveId(id);
+            router.push(`/chats/${id}`);
+          }}
+          isExpanded={sidebarOpen}
+          onToggleExpanded={() => setSidebarOpen((v) => !v)}
+          onNavigateToProfile={() => router.push('/')}
+        />
 
-      <main className="flex-1 flex flex-col">
-        {/* ヘッダ */}
-        <div className="h-14 border-b border-black/10 dark:border-white/10 px-2 md:px-4 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            {!sidebarOpen && (
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="inline-flex items-center justify-center rounded-md p-2 hover:bg-black/10 dark:hover:bg-white/10"
-                aria-label="サイドバーを開く"
-                title="サイドバーを開く"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-4">
-                  <path d="M3 6.75A.75.75 0 0 1 3.75 6h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 6.75Zm0 3.5A.75.75 0 0 1 3.75 9.5h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 10.25Zm0 3.5a.75.75 0 0 1 .75-.75h12.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1-.75-.75Z"/>
-                </svg>
-              </button>
-            )}
-            <div className="font-semibold truncate">{showProfile ? "Profile" : "Chat"}</div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="text-xs text-black/50 dark:text-white/50 hidden sm:block">UI Demo</div>
-            <UserMenu />
-          </div>
-        </div>
-
-        {/* 本文 */}
-        {showProfile ? (
-          <ProfilePane />
-        ) : active && active.messages.length > 0 ? (
-          <MessageList messages={active.messages} />
-        ) : notFound ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="mx-auto w-full max-w-3xl px-6 md:px-8">
-              <div className="text-center space-y-3">
-                <h1 className="text-2xl md:text-3xl font-semibold">チャットが見つかりません</h1>
-                <p className="text-sm text-black/60 dark:text-white/60">存在しない、または権限がありません。別のチャットを選ぶか、新規作成してください。</p>
-                <div className="flex gap-2 justify-center">
-                  <button onClick={() => router.push('/')} className="rounded-lg border border-black/10 dark:border-white/10 px-3 py-1.5 text-sm hover:bg-black/5 dark:hover:bg-white/10">トップへ</button>
-                  <button onClick={handleNewChat} className="rounded-lg bg-black/80 text-white px-3 py-1.5 text-sm hover:bg-black">+ 新しいチャット</button>
+        <main className="flex-1 min-w-0 h-full">
+          {/* 本文 */}
+          {showProfile ? (
+            <SparProfile
+              chatSessions={sessions}
+              currentChatId={activeId}
+              onCreateChat={handleNewChat}
+              onSelectChat={(id) => { setActiveId(id); router.push(`/chats/${id}`); }}
+              onLogout={() => signOut({ callbackUrl: '/login' })}
+            />
+          ) : notFound ? (
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="mx-auto w-full max-w-3xl px-6 md:px-8">
+                <div className="text-center space-y-3">
+                  <h1 className="text-2xl md:text-3xl font-semibold">チャットが見つかりません</h1>
+                  <p className="text-sm text-black/60 dark:text-white/60">存在しない、または権限がありません。別のチャットを選ぶか、新規作成してください。</p>
+                  <div className="flex gap-2 justify-center">
+                    <button onClick={() => router.push('/')} className="rounded-lg border border-black/10 dark:border-white/10 px-3 py-1.5 text-sm hover:bg-black/5 dark:hover:bg-white/10">トップへ</button>
+                    <button onClick={() => handleNewChat()} className="rounded-lg bg-black/80 text-white px-3 py-1.5 text-sm hover:bg-black">+ 新しいチャット</button>
                 </div>
               </div>
             </div>
           </div>
-        ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="mx-auto w-full max-w-3xl px-6 md:px-8">
-              <div className="text-center">
-                <h1 className="text-2xl md:text-3xl font-semibold mb-3">新しくチャットを作成</h1>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 入力欄 */}
-        {/* チャット入力欄：ended の場合は非表示にして通知バーを出す（日本語コメント）*/}
-        {!showProfile && active && active.status !== 'ended' && (
-          <ChatInput value={input} setValue={setInput} onSend={handleSend} disabled={sending} />
-        )}
-        {!showProfile && active && active.status === 'ended' && (
-          <div className="border-t border-black/10 dark:border-white/10 p-4 bg-white/60 dark:bg-white/5 backdrop-blur">
-            <div className="mx-auto w-full max-w-3xl flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="text-sm text-black/70 dark:text-white/70">
-                このチャットは終了しました（送信はできません）。
-              </div>
-              <button
-                onClick={handleNewChat}
-                className="inline-flex items-center gap-2 rounded-xl bg-black/80 text-white px-3 py-2 text-sm hover:bg-black"
-              >
-                + 新しいチャット
-              </button>
-            </div>
-          </div>
-        )}
-      </main>
+          ) : (
+            <SparChatbot
+              messages={active?.messages ?? []}
+              isLoading={sending}
+              hideInput={active?.status === 'ended'}
+              inputDisabled={sending}
+              onSendMessage={(text) => { handleSend(text); }}
+              subjectLabel={active?.subjectName || ((active?.subjectId ? undefined : '数学')) || undefined}
+              topicLabel={active?.topicName || active?.prefTopicName || (((active?.subjectName || (active?.subjectId ? '' : '数学')) || '数学') === '英語' ? '仮定法' : '確率')}
+            />
+          )}
+        </main>
+      </div>
     </div>
   );
 }

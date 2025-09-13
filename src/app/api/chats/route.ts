@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/auth";
 import { db } from "@/db/client";
-import { chats } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { chats, subjects, topics } from "@/db/schema";
+import { desc, eq, and } from "drizzle-orm";
 import { getLogger } from "@/lib/logger";
 import { resolveUserIdFromSession } from "@/lib/user";
 
@@ -44,8 +44,14 @@ export async function GET(req: Request) {
         status: chats.status,
         createdAt: chats.createdAt,
         updatedAt: chats.updatedAt,
+        subjectId: chats.subjectId,
+        subjectName: subjects.name,
+        topicId: chats.topicId,
+        topicName: topics.name,
       })
       .from(chats)
+      .leftJoin(subjects, eq(chats.subjectId, subjects.id))
+      .leftJoin(topics, eq(chats.topicId, topics.id))
       .where(eq(chats.userId, userId))
       .orderBy(desc(chats.updatedAt))
       .limit(limit);
@@ -82,12 +88,23 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({} as any));
     const titleRaw = typeof body?.title === "string" ? body.title : "";
     const title = titleRaw.trim() || "新しいチャット";
-    const subjectId = typeof body?.subjectId === "string" && body.subjectId ? body.subjectId : undefined;
+    let subjectId = typeof body?.subjectId === "string" && body.subjectId ? String(body.subjectId) : undefined;
+    let topicId = typeof body?.topicId === "string" && body.topicId ? String(body.topicId) : undefined;
+
+    // 既定値の解決（DBから数式: 数学 / 確率）
+    if (!subjectId) {
+      const s = await db.select({ id: subjects.id }).from(subjects).where(eq(subjects.name, '数学')).limit(1);
+      subjectId = s[0]?.id as string | undefined;
+    }
+    if (!topicId && subjectId) {
+      const t = await db.select({ id: topics.id }).from(topics).where(and(eq(topics.subjectId, subjectId), eq(topics.name, '確率'))).limit(1);
+      topicId = t[0]?.id as string | undefined;
+    }
 
     const inserted = await db
       .insert(chats)
-      .values({ userId, title, subjectId })
-      .returning({ id: chats.id, title: chats.title, createdAt: chats.createdAt, updatedAt: chats.updatedAt, status: chats.status });
+      .values({ userId, title, subjectId, topicId })
+      .returning({ id: chats.id, title: chats.title, createdAt: chats.createdAt, updatedAt: chats.updatedAt, status: chats.status, subjectId: chats.subjectId, topicId: chats.topicId });
 
     const row = inserted[0];
     log.info({ msg: "created", id: row?.id });

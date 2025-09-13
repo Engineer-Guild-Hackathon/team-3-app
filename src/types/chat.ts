@@ -14,6 +14,12 @@ export type ChatSession = {
   title: string;
   // ステータス（in_progress | ended）。ended の場合は送受信不能。
   status?: "in_progress" | "ended";
+  // 学習選択: 教科/分野（任意）
+  subjectId?: string;
+  subjectName?: string;
+  topicId?: string;
+  topicName?: string;
+  prefTopicName?: string;
   messages: ChatMessage[];
   updatedAt: number;
 };
