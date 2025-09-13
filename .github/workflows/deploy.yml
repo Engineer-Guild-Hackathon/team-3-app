@@ -138,7 +138,7 @@ jobs:
           docker run --rm \
             -e DATABASE_URL="$DATABASE_URL" \
             "$IMAGE" \
-            sh -lc 'npm run -s db:migrate'
+            sh -lc 'node scripts/migrate.mjs'
 
           echo "Migration finished successfully."
 
