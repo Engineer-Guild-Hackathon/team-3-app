@@ -17,6 +17,8 @@ export type ChatSession = {
   // 学習選択: 教科/分野（任意）
   subjectId?: string;
   subjectName?: string;
+  topicId?: string;
+  topicName?: string;
   prefTopicName?: string;
   messages: ChatMessage[];
   updatedAt: number;

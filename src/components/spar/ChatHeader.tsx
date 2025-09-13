@@ -4,7 +4,12 @@
 import { motion } from 'motion/react';
 import { Bot, Circle } from 'lucide-react';
 
-export default function ChatHeader() {
+type Props = {
+  subject?: string;
+  topic?: string;
+};
+
+export default function ChatHeader({ subject, topic }: Props) {
   return (
     <motion.div
       initial={{ opacity: 0, y: -20 }}
@@ -25,7 +30,16 @@ export default function ChatHeader() {
             </div>
           </div>
         </div>
-        <div className="text-xs text-gray-500">iOS 26 • Liquid Glass</div>
+        <div className="text-xs text-gray-500 flex items-center gap-2">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white/20 border border-white/30">
+            <span className="opacity-70">教科</span>
+            <span className="font-medium text-gray-700">{subject || '未設定'}</span>
+          </span>
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white/20 border border-white/30">
+            <span className="opacity-70">分野</span>
+            <span className="font-medium text-gray-700">{topic || '未設定'}</span>
+          </span>
+        </div>
       </div>
     </motion.div>
   );

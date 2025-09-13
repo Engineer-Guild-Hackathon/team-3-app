@@ -43,6 +43,8 @@ export const chats = pgTable('chats', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   subjectId: uuid('subject_id').references(() => subjects.id, { onDelete: 'set null' }),
+  // topic_id は任意（subject_id と論理的に関連、DB制約は topic -> topics.id の FK のみ）
+  topicId: uuid('topic_id').references(() => topics.id, { onDelete: 'set null' }),
   title: text('title').notNull().default('新しいチャット'),
   status: text('status').notNull().default('in_progress'), // chat_status: in_progress | ended
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

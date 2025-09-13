@@ -14,9 +14,11 @@ type Props = {
   isLoading?: boolean;
   hideInput?: boolean;
   inputDisabled?: boolean;
+  subjectLabel?: string;
+  topicLabel?: string;
 };
 
-export default function Chatbot({ messages, onSendMessage, isLoading = false, hideInput = false, inputDisabled = false }: Props) {
+export default function Chatbot({ messages, onSendMessage, isLoading = false, hideInput = false, inputDisabled = false, subjectLabel, topicLabel }: Props) {
   const endRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length, isLoading]);
 
@@ -33,7 +35,7 @@ export default function Chatbot({ messages, onSendMessage, isLoading = false, hi
     >
       <div className="relative z-10 flex flex-col h-full">
         <div className="p-6 pb-0">
-          <ChatHeader />
+          <ChatHeader subject={subjectLabel} topic={topicLabel} />
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-4 scroll-smooth">
           {messages.map((m) => (

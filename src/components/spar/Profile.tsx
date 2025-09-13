@@ -11,7 +11,7 @@ import { useSession } from 'next-auth/react';
 type Props = {
   chatSessions: ChatSession[];
   currentChatId?: string | null;
-  onCreateChat: (opts?: { subjectId?: string; prefTopicName?: string }) => void;
+  onCreateChat: (opts?: { subjectId?: string; topicId?: string; prefTopicName?: string }) => void;
   onSelectChat: (id: string) => void;
   onLogout: () => void;
 };
@@ -90,7 +90,7 @@ export default function Profile({ chatSessions, currentChatId = null, onCreateCh
           {/* Actions & History */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="flex-1 flex flex-col min-h-0">
             <div className="flex justify-center mb-6 flex-shrink-0">
-              <motion.button onClick={() => onCreateChat({ subjectId: selectedSubject || undefined })} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="px-8 py-4 rounded-2xl backdrop-blur-xl bg-blue-500/20 border border-white/20 hover:bg-blue-500/30 transition-all duration-200 shadow-lg shadow-blue-500/10 flex items-center gap-3 text-blue-600">
+              <motion.button onClick={() => onCreateChat({ subjectId: selectedSubject || undefined, topicId: selectedFields[0] || undefined })} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="px-8 py-4 rounded-2xl backdrop-blur-xl bg-blue-500/20 border border-white/20 hover:bg-blue-500/30 transition-all duration-200 shadow-lg shadow-blue-500/10 flex items-center gap-3 text-blue-600">
                 <MessageSquarePlus className="w-5 h-5" />
                 <span>New Chat</span>
               </motion.button>
