@@ -123,21 +123,21 @@ jobs:
             --settings "${SETTINGS[@]}"
 
       # --- DB マイグレーション（本番イメージを一時起動して実行） ---
-      - name: Run DB migration using app image
+      - name: Run DB migration in the same image
         shell: bash
         env:
-          # GitHub Secrets に本番 DB の接続文字列を入れておく（sslmode=require 推奨）
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           set -euo pipefail
+
           echo "Pulling image to run migration..."
-          docker pull "${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          IMAGE="${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          docker pull "$IMAGE"
 
           echo "Running migration inside the same image as production..."
           docker run --rm \
             -e DATABASE_URL="$DATABASE_URL" \
-            # 必要なら他の環境変数も -e で渡す（例：NODE_ENV=production 等）
-            "${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}" \
+            "$IMAGE" \
             sh -lc 'npm run -s db:migrate'
 
           echo "Migration finished successfully."
