@@ -122,6 +122,26 @@ jobs:
             -g "$AZURE_RESOURCE_GROUP" -n "$AZURE_WEBAPP_NAME" \
             --settings "${SETTINGS[@]}"
 
+      # --- DB マイグレーション（本番イメージを一時起動して実行） ---
+      - name: Run DB migration using app image
+        shell: bash
+        env:
+          # GitHub Secrets に本番 DB の接続文字列を入れておく（sslmode=require 推奨）
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          echo "Pulling image to run migration..."
+          docker pull "${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+
+          echo "Running migration inside the same image as production..."
+          docker run --rm \
+            -e DATABASE_URL="$DATABASE_URL" \
+            # 必要なら他の環境変数も -e で渡す（例：NODE_ENV=production 等）
+            "${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}" \
+            sh -lc 'npm run -s db:migrate'
+
+          echo "Migration finished successfully."
+
       # --- Web App の使用イメージを更新（デプロイ） ---
       - name: Deploy to Web App (Container)
         uses: azure/webapps-deploy@v2
