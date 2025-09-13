@@ -84,6 +84,10 @@ export async function runChat(input: RunChatInput, opts: Partial<RunChatOptions>
     parsed = null;
   }
 
+  // 使用トークン情報（あれば）
+  const usage = (resp as any)?.usage ?? null;
+  const finishReason = (resp as any)?.choices?.[0]?.finish_reason ?? null;
+
   let out: RunChatOutput;
   if (parsed && typeof parsed === "object" && isAnswerWithStatus(parsed)) {
     // LLM の素の JSON（answer/status のみ）を最終形へマッピング
@@ -99,6 +103,16 @@ export async function runChat(input: RunChatInput, opts: Partial<RunChatOptions>
   }
 
   // 回答本文は長くなるため、ログには文字数のみを出力
-  log.info({ msg: "runChat:final", sessionId, requestId, chatId: input.chatId, ms: dt, chars: out.answer.length, status: out.status });
+  log.info({
+    msg: "runChat:final",
+    sessionId,
+    requestId,
+    chatId: input.chatId,
+    ms: dt,
+    chars: out.answer.length,
+    status: out.status,
+    usage,
+    finish_reason: finishReason,
+  });
   return out;
 }
