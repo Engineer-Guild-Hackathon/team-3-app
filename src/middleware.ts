@@ -8,12 +8,14 @@ export default withAuth({
   callbacks: {
     authorized: ({ token, req }) => {
       const pathname = req.nextUrl.pathname;
+      // 未認証でもアクセス可能なパス（静的アセット等）を許可
+      // Next.js の public 配下はルート直下に展開されるため、拡張子を含むパスは除外
       const isPublic =
         pathname.startsWith("/login") ||
         pathname.startsWith("/api/auth") ||
         pathname.startsWith("/_next") ||
         pathname === "/favicon.ico" ||
-        pathname.startsWith("/public");
+        pathname.includes("."); // 例: /SPAR_logo.png, /robots.txt など
       if (isPublic) return true;
       return !!token;
     },
@@ -23,6 +25,10 @@ export default withAuth({
 export const config = {
   matcher: [
     // 公開ルートと静的アセットを除外
-    "/((?!api/auth|login|_next|favicon.ico|public).*)",
+    // - /login
+    // - /api/auth
+    // - /_next/*
+    // - ルート直下の静的ファイル（拡張子を含むもの）
+    "/((?!api/auth|login|_next|favicon.ico|.*\\..*).*)",
   ],
 };
