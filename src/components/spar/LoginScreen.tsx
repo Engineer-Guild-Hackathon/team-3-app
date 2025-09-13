@@ -2,6 +2,7 @@
 
 // SPAR のログインカードUIを再現（日本語コメント）
 import { motion } from "motion/react";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 
 type Props = {
@@ -61,11 +62,14 @@ export default function LoginScreen({ onGoogleLogin, disabled = false, errorText
             className="text-center mb-1"
           >
             {logoSrc && !logoFailed ? (
-              <img
+              <Image
                 src={logoSrc}
                 alt={`${brandName} logo`}
+                width={320}
+                height={320}
                 className="w-72 h-72 sm:w-80 sm:h-80 mx-auto object-contain"
-                onError={handleLogoError}
+                onError={() => handleLogoError()}
+                priority
               />
             ) : (
               <svg className="w-32 h-32 sm:w-40 sm:h-40 mx-auto text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
