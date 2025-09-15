@@ -10,6 +10,7 @@ import type {
   ConversationTurn,
 } from "@/types/llm";
 import { getRunChatSystemPrompt } from "./prompts";
+import { turnsToMessages } from "@/lib/chat/mapping";
 
 // ------------------------------
 // ヘルパー（共通処理）
@@ -18,15 +19,7 @@ import { getRunChatSystemPrompt } from "./prompts";
 /**
  * { assistant, user } のターン配列を ChatCompletion メッセージ配列へ展開する
  */
-function mapTurnsToMessages(turns: ConversationTurn[]): LlmMessage[] {
-  const out: LlmMessage[] = [];
-  for (let i = 0; i < turns.length; i++) {
-    const t = turns[i];
-    if (t?.assistant) out.push({ role: "assistant", content: String(t.assistant) });
-    if (t?.user) out.push({ role: "user", content: String(t.user) });
-  }
-  return out;
-}
+// 会話ターン→LLMメッセージ変換は共通ユーティリティへ集約
 
 /**
  * runChat: 型指定の入出力でテキスト回答を得る関数
@@ -51,7 +44,7 @@ export async function runChat(input: RunChatInput, opts: Partial<RunChatOptions>
   // subject/theme/description をテンプレへ注入した system 指示を使用
   const sys = await getRunChatSystemPrompt(input.subject, input.theme, input.description ?? "");
   const turns: ConversationTurn[] = input.history ?? [];
-  const messages: LlmMessage[] = [{ role: "system", content: sys }, ...mapTurnsToMessages(turns)];
+  const messages: LlmMessage[] = [{ role: "system", content: sys }, ...turnsToMessages(turns)];
   log.debug({ msg: "runChat:history_mapped", turns: turns.length, messages: messages.length });
 
   // JSON Schema で構造化出力を強制（answer/status のみ）

@@ -5,17 +5,24 @@ import { signOut } from "next-auth/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { ChatMessage, ChatSession } from "@/types/chat";
-import type { ConversationTurn, RunChatInput } from "@/types/llm";
+import type { RunChatInput } from "@/types/llm";
 
 import SparSidebar from "./spar/ChatSidebar";
 import SparChatbot from "./spar/Chatbot";
 import SparProfile from "./spar/Profile";
+// 共通ユーティリティ（将来のモバイル移植も見据えて分離）
+import { numericIdFromUuid } from "@/lib/chat/id";
+import { messagesToTurns } from "@/lib/chat/mapping";
+import { apiFetchJson } from "@/lib/http";
+import { getSubjectName, getTopicName } from "@/lib/subjects";
+import { loadSessions, saveSessions, SESSION_STORAGE_KEY } from "@/lib/storage/sessionStore";
+import { listChats as apiListChats, createChat as apiCreateChat, runChat as apiRunChat } from "@/lib/api/chat";
 
 // UUID生成（衝突リスクが非常に低い）
 const rid = () => crypto.randomUUID();
 
 // LocalStorage キー
-const STORAGE_KEY = "chat:sessions:v1";
+const STORAGE_KEY = SESSION_STORAGE_KEY;
 const AUTO_INTRO_FLAG_PREFIX = "chat:auto-intro:"; // localStorage フラグ（新規作成直後の自動送信許可）
 const UI_SIDEBAR_OPEN_KEY = "ui:sidebar:open:v1";
 
@@ -48,43 +55,11 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   const [notFound, setNotFound] = useState(false);
 
   // 簡易フェッチヘルパー
-  const fetchJson = useCallback(async (url: string, init?: RequestInit) => {
-    const res = await fetch(url, init);
-    if (res.status === 401) {
-      // 未認証はログインへ誘導
-      if (typeof window !== "undefined") window.location.href = "/login";
-      const err: any = new Error("Unauthorized");
-      err.status = 401;
-      throw err;
-    }
-    let data: any = {};
-    try { data = await res.json(); } catch {}
-    if (!res.ok || data?.ok === false) {
-      const err: any = new Error(String(data?.error ?? `HTTP ${res.status}`));
-      err.status = res.status;
-      throw err;
-    }
-    return data;
-  }, []);
+  const fetchJson = useCallback(apiFetchJson, []);
 
   // subject/topic 名称の解決ヘルパー（必要時のみ取得）
-  const fetchSubjectName = useCallback(async (sid?: string): Promise<string | undefined> => {
-    if (!sid) return undefined;
-    try {
-      const data = await fetchJson('/api/subjects');
-      const items = (data?.result?.items ?? []) as Array<{ id: string; name: string }>;
-      return items.find((x) => x.id === sid)?.name;
-    } catch { return undefined; }
-  }, [fetchJson]);
-
-  const fetchTopicName = useCallback(async (sid?: string, tid?: string): Promise<string | undefined> => {
-    if (!sid || !tid) return undefined;
-    try {
-      const data = await fetchJson(`/api/subjects/${sid}/topics`);
-      const items = (data?.result?.items ?? []) as Array<{ id: string; name: string }>;
-      return items.find((x) => x.id === tid)?.name;
-    } catch { return undefined; }
-  }, [fetchJson]);
+  const fetchSubjectName = useCallback((sid?: string) => getSubjectName(sid), []);
+  const fetchTopicName = useCallback((sid?: string, tid?: string) => getTopicName(sid, tid), []);
 
   // 空のセッションを作成
   const createSession = useCallback((fixedId?: string): ChatSession => {
@@ -94,20 +69,15 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   }, []);
 
   // 保存
-  const persist = useCallback((next: ChatSession[]) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch {}
-  }, []);
+  const persist = useCallback((next: ChatSession[]) => { saveSessions(next); }, []);
 
   // 初期化：保存済み読み込み or 新規作成（初回描画前に反映するため useLayoutEffect を使用）
   const [bootstrapped, setBootstrapped] = useState(false);
   useLayoutEffect(() => {
     let redirected = false;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as ChatSession[];
+      const parsed = loadSessions();
+      if (parsed) {
         setSessions(parsed);
         const hasInitial = initialId && parsed.some((s) => s.id === initialId);
         if (initialId && !hasInitial) {
@@ -136,7 +106,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
           setSessions(next);
           // /（プロフィール優先表示）の場合はアクティブを持たない
           setActiveId(showProfileOnEmpty ? null : first.id);
-          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+          saveSessions(next);
         }
       }
     } catch {}
@@ -167,8 +137,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   useEffect(() => {
     const run = async () => {
       try {
-        const data = await fetchJson('/api/chats');
-        const items = (data?.result?.items ?? []) as Array<{ id: string; title: string; status: 'in_progress'|'ended'; updatedAt: string | number; subjectId?: string; subjectName?: string; topicId?: string; topicName?: string }>;
+        const items = await apiListChats();
         if (!Array.isArray(items) || items.length === 0) return;
         const mapped: ChatSession[] = items.map((r) => ({
           id: String(r.id),
@@ -189,7 +158,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
           const merged = Array.from(map.values()).sort((a,b)=>b.updatedAt-a.updatedAt);
           // アクティブが未設定なら先頭を選ぶ（プロフィール優先表示時は null を維持）
           if (!activeId && !showProfileOnEmpty && merged.length > 0) setActiveId(merged[0].id);
-          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(merged)); } catch {}
+          saveSessions(merged);
           return merged;
         });
       } catch {
@@ -208,12 +177,8 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   const handleNewChat = async (opts?: { subjectId?: string; topicId?: string; prefTopicName?: string }) => {
     try {
       // API で作成（失敗時はローカルフォールバック）
-      const body: any = {};
-      if (opts?.subjectId) body.subjectId = opts.subjectId;
-      if (opts?.topicId) body.topicId = opts.topicId;
-      const data = await fetchJson('/api/chats', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const row = data?.result as { id: string; title: string; status?: 'in_progress'|'ended'; updatedAt: string | number; subjectId?: string; topicId?: string };
-      const s: ChatSession = { id: row.id, title: row.title ?? '新しいチャット', status: row.status ?? 'in_progress', subjectId: row.subjectId, topicId: row.topicId, prefTopicName: opts?.prefTopicName, messages: [], updatedAt: typeof row.updatedAt === 'number' ? row.updatedAt : new Date(row.updatedAt).getTime() };
+      const created = await apiCreateChat({ subjectId: opts?.subjectId, topicId: opts?.topicId });
+      const s: ChatSession = { id: created.id, title: created.title ?? '新しいチャット', status: created.status ?? 'in_progress', subjectId: created.subjectId, topicId: created.topicId, prefTopicName: opts?.prefTopicName, messages: [], updatedAt: typeof created.updatedAt === 'number' ? created.updatedAt : new Date(created.updatedAt).getTime() };
       const next = [s, ...sessions];
       setSessions(next);
       setActiveId(s.id);
@@ -271,39 +236,10 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
       const current = nextSessions.find((s) => s.id === active.id)!;
 
       // 数値 chatId へ変換（UUID→32bit hash）
-      const chatId = (() => {
-        const str = current.id;
-        let h = 0;
-        for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
-        return Math.abs(h);
-      })();
+      const chatId = numericIdFromUuid(current.id);
 
       // 履歴を { assistant, user } のターン配列へ変換
-      const toTurns = (msgs: ChatMessage[]): ConversationTurn[] => {
-        const turns: ConversationTurn[] = [];
-        let pendingA = "";
-        let pendingU = "";
-        for (const m of msgs) {
-          if (m.role === "assistant") {
-            if (pendingA || pendingU) {
-              turns.push({ assistant: pendingA, user: pendingU });
-              pendingA = ""; pendingU = "";
-            }
-            pendingA = m.content;
-          } else if (m.role === "user") {
-            if (pendingU) {
-              turns.push({ assistant: pendingA, user: pendingU });
-              pendingA = ""; pendingU = "";
-            }
-            pendingU = m.content;
-            // assistant が未到着でも一旦ペアとして確定
-            turns.push({ assistant: pendingA, user: pendingU });
-            pendingA = ""; pendingU = "";
-          }
-        }
-        if (pendingA || pendingU) turns.push({ assistant: pendingA, user: pendingU });
-        return turns;
-      };
+      const toTurns = messagesToTurns;
 
       // 教科/分野ラベルの解決（未解決なら API から取得）
       let subj = current.subjectName || (current.subjectId ? '' : '数学');
@@ -332,16 +268,16 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         history: toTurns(current.messages),
       };
 
-      const data = await fetchJson('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const data = await apiRunChat(payload);
 
       // 3) 応答メッセージを追記（RunChatOutput 優先、旧API互換も対応）
       const assistant: ChatMessage = {
         id: rid(),
         role: "assistant",
-        content: String(data.result?.answer ?? data.result?.text ?? ""),
+        content: String(data.result?.answer ?? (data as any).result?.text ?? ""),
         createdAt: Date.now(),
       };
-      const assistantPersisted = (data.meta?.assistantPersisted ?? data.result?.meta?.assistantPersisted) !== false;
+      const assistantPersisted = (data.meta?.assistantPersisted ?? (data as any).result?.meta?.assistantPersisted) !== false;
       const lastLocal = nextSessions.find((s) => s.id === active.id)?.messages?.at(-1);
       const lastLocalIsAssistant = lastLocal?.role === 'assistant';
       const ended = (data.result?.status ?? 0) === -1 ? false : true;
@@ -425,9 +361,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
       autoIntroInFlight.current[active.id] = true; // ここでロック
       setSending(true);
       try {
-        const chatId = (() => {
-          const str = active.id; let h = 0; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0; return Math.abs(h);
-        })();
+        const chatId = numericIdFromUuid(active.id);
         // 教科/分野ラベルの解決
         let subj2 = active.subjectName || (active.subjectId ? '' : '数学');
         let topic2 = active.topicName || active.prefTopicName || '';
@@ -453,11 +387,9 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
           clientSessionId: active.id,
           history: [],
         } as RunChatInput;
-        const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data?.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
-        const assistant: ChatMessage = { id: rid(), role: "assistant", content: String(data.result?.answer ?? data.result?.text ?? ""), createdAt: Date.now() };
-        const assistantPersisted = (data.meta?.assistantPersisted ?? data.result?.meta?.assistantPersisted) !== false;
+        const data = await apiRunChat(payload);
+        const assistant: ChatMessage = { id: rid(), role: "assistant", content: String(data.result?.answer ?? (data as any).result?.text ?? ""), createdAt: Date.now() };
+        const assistantPersisted = (data.meta?.assistantPersisted ?? (data as any).result?.meta?.assistantPersisted) !== false;
         setSessions((prev) => {
           const ended = (data.result?.status ?? 0) === -1 ? false : true;
           const next = prev.map((s) => {
@@ -470,7 +402,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
             }
             return base;
           });
-          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+          saveSessions(next);
           return next;
         });
         autoIntroSent.current[active.id] = true;
