@@ -26,6 +26,7 @@ export default [
       "next-env.d.ts",
       "eslint.config.mjs",
       "_ui_sample/**",
+      "scripts/**",
     ],
   },
 

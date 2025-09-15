@@ -16,6 +16,18 @@ tasks:
     cmds:
       - echo "Starting dev (Docker Compose)..."
       - "docker compose -f docker-compose.dev.yml up --build"
+
+  dev:setup:
+    desc: Start DB, run migrations, then launch dev (foreground)
+    interactive: true
+    cmds:
+      - echo "Bootstrapping dev stack (db + migrations)..."
+      - "docker compose -f docker-compose.dev.yml up -d db"
+      - "docker compose -f docker-compose.dev.yml exec -T db sh -c 'until pg_isready -U dev -d team3app_dev; do sleep 1; done'"
+      - echo "Running migrations..."
+      - "docker compose -f docker-compose.dev.yml run --rm web sh -c 'npm run -s db:migrate'"
+      - echo "Starting dev (Docker Compose)..."
+      - "docker compose -f docker-compose.dev.yml up --build"
   
   dev:nuke:
     desc: Stop & remove containers + volumes (recreate node_modules)

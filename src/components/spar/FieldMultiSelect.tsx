@@ -4,6 +4,7 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { apiFetchJson } from '@/lib/http';
 
 type Props = {
   selectedFields: string[];
@@ -21,9 +22,7 @@ export default function FieldMultiSelect({ selectedFields, onFieldsChange, subje
     const run = async () => {
       if (!subject) { setAvailable([]); return; }
       try {
-        const res = await fetch(`/api/subjects/${subject}/topics`);
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || data?.ok === false) return;
+        const data = await apiFetchJson<{ result?: { items?: Field[] } }>(`/api/subjects/${subject}/topics`);
         if (!aborted) setAvailable(data.result?.items ?? []);
       } catch {}
     };

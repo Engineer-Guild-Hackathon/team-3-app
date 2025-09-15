@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, BookOpen } from 'lucide-react';
+import { apiFetchJson } from '@/lib/http';
 
 type Props = { value: string; onChange: (v: string) => void; disabled?: boolean };
 
@@ -19,9 +20,7 @@ export default function SubjectDropdown({ value, onChange, disabled = false }: P
     let aborted = false;
     const run = async () => {
       try {
-        const res = await fetch('/api/subjects');
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || data?.ok === false) return;
+        const data = await apiFetchJson<{ result?: { items?: Subject[] } }>("/api/subjects");
         if (!aborted) setItems(data.result?.items ?? []);
       } catch {}
     };
