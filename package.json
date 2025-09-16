@@ -1,48 +1,20 @@
 {
-  "name": "web-tmp",
-  "version": "0.1.0",
+  "name": "team-3-app",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
-    "start": "next start",
-    "typecheck": "tsc -p tsconfig.typecheck.json",
-    "lint": "eslint . --max-warnings=0",
-    "lint:fix": "eslint . --fix",
-    "lint:ci": "eslint . --max-warnings=0",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio --port 4983 --host 0.0.0.0"
-  },
-  "dependencies": {
-    "@azure/identity": "^4.12.0",
-    "drizzle-orm": "^0.33.0",
-    "next": "15.5.2",
-    "next-auth": "^4.24.7",
-    "pino": "^9.3.2",
-    "openai": "^5.20.1",
-    "pg": "^8.16.3",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "lucide-react": "^0.477.0",
-    "motion": "^11.11.17"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/pg": "^8.11.6",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "pino-pretty": "^11.2.2",
-    "@typescript-eslint/eslint-plugin": "^7.18.0",
-    "@typescript-eslint/parser": "^7.18.0",
-    "dotenv": "^16.6.1",
-    "drizzle-kit": "^0.24.2",
-    "eslint": "^8.57.1",
-    "eslint-config-next": "^15.5.2",
-    "eslint-plugin-simple-import-sort": "^10.0.0",
-    "eslint-plugin-unused-imports": "^3.2.0",
-    "tailwindcss": "^4",
-    "typescript": "~5.5.4"
+    "dev": "npm run dev --workspace @team3/web",
+    "build": "npm run build --workspace @team3/web",
+    "start": "npm run start --workspace @team3/web",
+    "typecheck": "npm run typecheck --workspace @team3/web",
+    "lint": "npm run lint --workspace @team3/web",
+    "lint:fix": "npm run lint:fix --workspace @team3/web",
+    "lint:ci": "npm run lint:ci --workspace @team3/web",
+    "db:generate": "npm run db:generate --workspace @team3/web",
+    "db:migrate": "npm run db:migrate --workspace @team3/web",
+    "db:studio": "npm run db:studio --workspace @team3/web"
   }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { ChatMessage, ChatSession } from "@/types/chat";
@@ -15,14 +15,12 @@ import { numericIdFromUuid } from "@/lib/chat/id";
 import { messagesToTurns } from "@/lib/chat/mapping";
 import { apiFetchJson } from "@/lib/http";
 import { getSubjectName, getTopicName } from "@/lib/subjects";
-import { loadSessions, saveSessions, SESSION_STORAGE_KEY } from "@/lib/storage/sessionStore";
-import { listChats as apiListChats, createChat as apiCreateChat, runChat as apiRunChat } from "@/lib/api/chat";
+import { loadSessions, saveSessions } from "@/lib/storage/sessionStore";
+import { listChats as apiListChats, createChat as apiCreateChat, runChat as apiRunChat, renameChat as apiRenameChat, deleteChat as apiDeleteChat } from "@/lib/api/chat";
 
 // UUID生成（衝突リスクが非常に低い）
 const rid = () => crypto.randomUUID();
 
-// LocalStorage キー
-const STORAGE_KEY = SESSION_STORAGE_KEY;
 const AUTO_INTRO_FLAG_PREFIX = "chat:auto-intro:"; // localStorage フラグ（新規作成直後の自動送信許可）
 const UI_SIDEBAR_OPEN_KEY = "ui:sidebar:open:v1";
 
@@ -36,6 +34,8 @@ type Props = { initialId?: string; showProfileOnEmpty?: boolean };
 
 export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props) {
   const router = useRouter();
+  const { data: session } = useSession();
+  const storageOwner = session?.user?.email ?? null;
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeId, setActiveId] = useState<string | null>(initialId ?? null);
   const [input, setInput] = useState("");
@@ -51,6 +51,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   const [sidebarOpen, setSidebarOpen] = useState(true);
   // APIからの読み込み済みメッセージ管理（重複フェッチ防止）
   const loadedMessages = useRef<Record<string, boolean>>({});
+  const loadingMessages = useRef<Record<string, boolean>>({});
   // 404 Not Found（所有権なし/存在しない）の表示制御
   const [notFound, setNotFound] = useState(false);
 
@@ -69,50 +70,59 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   }, []);
 
   // 保存
-  const persist = useCallback((next: ChatSession[]) => { saveSessions(next); }, []);
+  const persist = useCallback(
+    (next: ChatSession[]) => {
+      saveSessions(storageOwner, next);
+    },
+    [storageOwner]
+  );
+
+  const makeAutoIntroKey = useCallback(
+    (chatId: string) => (storageOwner ? `${AUTO_INTRO_FLAG_PREFIX}${storageOwner}:${chatId}` : null),
+    [storageOwner]
+  );
+
+  const lastOwnerRef = useRef<string | null>(null);
+  const listFetchedForOwner = useRef<string | null>(null);
+  const persistRef = useRef(persist);
+
+  useEffect(() => {
+    persistRef.current = persist;
+  }, [persist]);
 
   // 初期化：保存済み読み込み or 新規作成（初回描画前に反映するため useLayoutEffect を使用）
   const [bootstrapped, setBootstrapped] = useState(false);
   useLayoutEffect(() => {
-    let redirected = false;
+    if (!storageOwner) return;
+    const ownerChanged = lastOwnerRef.current !== storageOwner;
+    lastOwnerRef.current = storageOwner;
+    if (ownerChanged) {
+      setSessions([]);
+      setActiveId(initialId ?? null);
+      loadedMessages.current = {};
+      autoIntroSent.current = {};
+      autoIntroInFlight.current = {};
+      listFetchedForOwner.current = null;
+    }
     try {
-      const parsed = loadSessions();
+      const parsed = loadSessions(storageOwner);
       if (parsed) {
         setSessions(parsed);
-        const hasInitial = initialId && parsed.some((s) => s.id === initialId);
-        if (initialId && !hasInitial) {
-          router.replace("/");
-          redirected = true;
-        } else {
-          // /（プロフィール優先表示）の場合はアクティブを持たない
-          setActiveId(
-            hasInitial
-              ? initialId
-              : (showProfileOnEmpty ? null : (parsed[0]?.id ?? null))
-          );
-          // 新規作成直後の自動イントロフラグ（ルート遷移跨ぎのためLSで受け渡し）
-          if (initialId) {
-            const flag = localStorage.getItem(AUTO_INTRO_FLAG_PREFIX + initialId);
-            if (flag === "1") setPendingAutoIntroId(initialId);
-          }
-        }
-      } else {
         if (initialId) {
-          router.replace("/");
-          redirected = true;
-        } else {
-          const first = createSession();
-          const next = [first];
-          setSessions(next);
-          // /（プロフィール優先表示）の場合はアクティブを持たない
-          setActiveId(showProfileOnEmpty ? null : first.id);
-          saveSessions(next);
+          setActiveId(initialId);
+          const flagKey = makeAutoIntroKey(initialId);
+          const flag = flagKey ? localStorage.getItem(flagKey) : null;
+          if (flag === "1") setPendingAutoIntroId(initialId);
+        } else if (!showProfileOnEmpty) {
+          setActiveId(parsed[0]?.id ?? null);
         }
+      } else if (!initialId && showProfileOnEmpty) {
+        setSessions([]);
+        setActiveId(null);
       }
     } catch {}
-    if (!redirected) setBootstrapped(true);
-    // リダイレクト時は別ページに遷移するため描画はスキップ
-  }, [createSession, initialId, router, showProfileOnEmpty]);
+    setBootstrapped(true);
+  }, [initialId, showProfileOnEmpty, storageOwner, makeAutoIntroKey]);
 
   // ルートの初期IDが変わった場合の追随（/chats/:id 遷移）
   useEffect(() => {
@@ -135,40 +145,58 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
 
   // API: チャット一覧の読み込み（初回）
   useEffect(() => {
+    if (!storageOwner) return;
+    if (listFetchedForOwner.current === storageOwner) return;
+    let cancelled = false;
     const run = async () => {
       try {
         const items = await apiListChats();
-        if (!Array.isArray(items) || items.length === 0) return;
-        const mapped: ChatSession[] = items.map((r) => ({
+        if (cancelled) return;
+        const mapped: ChatSession[] = (items ?? []).map((r) => ({
           id: String(r.id),
-          title: String(r.title ?? "(無題)"),
-          status: (r.status ?? 'in_progress'),
+          title: String(r.title ?? '(無題)'),
+          status: r.status ?? 'in_progress',
           subjectId: r.subjectId,
           subjectName: r.subjectName,
           topicId: r.topicId,
           topicName: r.topicName,
           messages: [],
           updatedAt: typeof r.updatedAt === 'number' ? r.updatedAt : new Date(r.updatedAt).getTime(),
-        }));
+        })).sort((a, b) => b.updatedAt - a.updatedAt);
+
         setSessions((prev) => {
-          // 既存と統合（同一IDはAPIを優先）
-          const map = new Map<string, ChatSession>();
-          for (const s of prev) map.set(s.id, s);
-          for (const s of mapped) map.set(s.id, s);
-          const merged = Array.from(map.values()).sort((a,b)=>b.updatedAt-a.updatedAt);
-          // アクティブが未設定なら先頭を選ぶ（プロフィール優先表示時は null を維持）
-          if (!activeId && !showProfileOnEmpty && merged.length > 0) setActiveId(merged[0].id);
-          saveSessions(merged);
+          const prevById = new Map(prev.map((s) => [s.id, s] as const));
+          const merged = mapped.map((s) => {
+            const prevSession = prevById.get(s.id);
+            if (prevSession) {
+              return {
+                ...s,
+                messages: prevSession.messages,
+                status: prevSession.status,
+                prefTopicName: prevSession.prefTopicName,
+              };
+            }
+            loadedMessages.current[s.id] = false;
+            return s;
+          });
+          persistRef.current(merged);
+          setActiveId((prevActive) => {
+            if (prevActive && merged.some((s) => s.id === prevActive)) return prevActive;
+            if (showProfileOnEmpty) return null;
+            return merged[0]?.id ?? null;
+          });
           return merged;
         });
       } catch {
-        // 失敗時は無視（LocalStorage 維持）
+        // ignore
       }
     };
+    listFetchedForOwner.current = storageOwner;
     run();
-    // 初回のみ
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [storageOwner, showProfileOnEmpty, persist]);
 
   // アクティブセッションの取得
   const active = useMemo(() => sessions.find((s) => s.id === activeId) ?? null, [sessions, activeId]);
@@ -179,28 +207,93 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
       // API で作成（失敗時はローカルフォールバック）
       const created = await apiCreateChat({ subjectId: opts?.subjectId, topicId: opts?.topicId });
       const s: ChatSession = { id: created.id, title: created.title ?? '新しいチャット', status: created.status ?? 'in_progress', subjectId: created.subjectId, topicId: created.topicId, prefTopicName: opts?.prefTopicName, messages: [], updatedAt: typeof created.updatedAt === 'number' ? created.updatedAt : new Date(created.updatedAt).getTime() };
-      const next = [s, ...sessions];
-      setSessions(next);
+      setSessions((prev) => {
+        const next = [s, ...prev];
+        persist(next);
+        return next;
+      });
       setActiveId(s.id);
-      try { localStorage.setItem(AUTO_INTRO_FLAG_PREFIX + s.id, "1"); } catch {}
+      const flagKey = makeAutoIntroKey(s.id);
+      if (flagKey) {
+        try { localStorage.setItem(flagKey, "1"); } catch {}
+      }
       setPendingAutoIntroId(s.id);
       setNotFound(false);
-      persist(next);
       setInput("");
-      router.push(`/chats/${s.id}`);
+      router.replace(`/chats/${s.id}`);
     } catch {
       const newSession = createSession();
       const next = [newSession, ...sessions];
       setSessions(next);
       setActiveId(newSession.id);
-      try { localStorage.setItem(AUTO_INTRO_FLAG_PREFIX + newSession.id, "1"); } catch {}
+      const flagKey = makeAutoIntroKey(newSession.id);
+      if (flagKey) {
+        try { localStorage.setItem(flagKey, "1"); } catch {}
+      }
       setPendingAutoIntroId(newSession.id);
       setNotFound(false);
       persist(next);
       setInput("");
-      router.push(`/chats/${newSession.id}`);
+      router.replace(`/chats/${newSession.id}`);
     }
   };
+
+  const handleRenameChat = useCallback(
+    async (id: string) => {
+      const target = sessions.find((s) => s.id === id);
+      const currentTitle = target?.title ?? '';
+      const nextTitleRaw = typeof window !== 'undefined' ? window.prompt('チャット名を変更', currentTitle) : null;
+      if (nextTitleRaw == null) return;
+      const nextTitle = nextTitleRaw.trim();
+      if (!nextTitle || nextTitle === currentTitle) return;
+      try {
+        await apiRenameChat(id, nextTitle);
+        setSessions((prev) => {
+          const next = prev.map((s) => (s.id === id ? { ...s, title: nextTitle, updatedAt: Date.now() } : s));
+          persist(next);
+          return next;
+        });
+      } catch (e: any) {
+        console.error(e);
+        if (typeof window !== 'undefined') {
+          window.alert(`名前の変更に失敗しました: ${String(e?.message ?? e)}`);
+        }
+      }
+    },
+    [sessions, persist]
+  );
+
+  const handleDeleteChat = useCallback(
+    async (id: string) => {
+      const target = sessions.find((s) => s.id === id);
+      if (!target) return;
+      const confirmed = typeof window === 'undefined' ? false : window.confirm(`「${target.title || '無題のチャット'}」を削除しますか？`);
+      if (!confirmed) return;
+      try {
+        await apiDeleteChat(id);
+        const next = sessions.filter((s) => s.id !== id);
+        setSessions(next);
+        persist(next);
+        delete loadedMessages.current[id];
+        const flagKey = makeAutoIntroKey(id);
+        if (flagKey) {
+          try { localStorage.removeItem(flagKey); } catch {}
+        }
+        if (activeId === id) {
+          const fallbackId = showProfileOnEmpty ? null : next[0]?.id ?? null;
+          setActiveId(fallbackId);
+          if (fallbackId) router.replace(`/chats/${fallbackId}`);
+          else router.replace('/chats');
+        }
+      } catch (e: any) {
+        console.error(e);
+        if (typeof window !== 'undefined') {
+          window.alert(`削除に失敗しました: ${String(e?.message ?? e)}`);
+        }
+      }
+    },
+    [sessions, persist, makeAutoIntroKey, activeId, router, showProfileOnEmpty]
+  );
 
   // 送信処理（API接続版）
   const handleSend = async (textArg?: string) => {
@@ -296,7 +389,10 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         setSessions(onlyStatus);
         persist(onlyStatus);
       }
-      loadedMessages.current[active.id] = true; // 以後API再フェッチ不要
+      loadedMessages.current[active.id] = true;
+      if (loadingMessages.current[active.id]) {
+        loadingMessages.current[active.id] = false;
+      }
     } catch (e: any) {
       // エラー時はメッセージとして表示
       const err: ChatMessage = {
@@ -319,32 +415,41 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
 
   // 選択中チャットの履歴をAPIからロード（未ロード時のみ）
   useEffect(() => {
-    const run = async () => {
-      const id = activeId;
-      if (!id || loadedMessages.current[id]) return;
+    const id = activeId;
+    if (!id || loadedMessages.current[id] || loadingMessages.current[id]) return;
+    loadingMessages.current[id] = true;
+    let cancelled = false;
+    (async () => {
       try {
         setNotFound(false);
         const data = await fetchJson(`/api/chats/${id}/messages`);
+        if (cancelled) return;
         const items = (data?.result?.items ?? []) as Array<{ id: string; role: 'user'|'assistant'|'system'; content: string; createdAt: string | number }>;
         if (!Array.isArray(items)) return;
-        setSessions((prev) => prev.map((s) => s.id === id
-          ? {
-              ...s,
-              messages: items.map((m) => ({ id: m.id, role: m.role as any, content: m.content, createdAt: typeof m.createdAt === 'number' ? m.createdAt : new Date(m.createdAt).getTime() })),
-              updatedAt: Date.now(),
-            }
-          : s));
+        setSessions((prev) => {
+          const updated = prev.map((s) => s.id === id
+            ? {
+                ...s,
+                messages: items.map((m) => ({ id: m.id, role: m.role as any, content: m.content, createdAt: typeof m.createdAt === 'number' ? m.createdAt : new Date(m.createdAt).getTime() })),
+                updatedAt: Date.now(),
+              }
+            : s);
+          persistRef.current(updated);
+          return updated;
+        });
         loadedMessages.current[id] = true;
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions)); } catch {}
       } catch (e: any) {
-        if (e?.status === 404) {
+        if (!cancelled && e?.status === 404) {
           setNotFound(true);
         }
-        // 404 以外の失敗は無視（LocalStorage のみ）
+      } finally {
+        loadingMessages.current[id] = false;
       }
+    })();
+    return () => {
+      cancelled = true;
     };
-    run();
-  }, [activeId, fetchJson, sessions]);
+  }, [activeId, fetchJson]);
 
   // 新規作成直後のみ最初に LLM 応答を自動生成（既存チャットを開いたときは送信しない）
   useEffect(() => {
@@ -390,6 +495,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         const data = await apiRunChat(payload);
         const assistant: ChatMessage = { id: rid(), role: "assistant", content: String(data.result?.answer ?? (data as any).result?.text ?? ""), createdAt: Date.now() };
         const assistantPersisted = (data.meta?.assistantPersisted ?? (data as any).result?.meta?.assistantPersisted) !== false;
+        let nextState: ChatSession[] = [];
         setSessions((prev) => {
           const ended = (data.result?.status ?? 0) === -1 ? false : true;
           const next = prev.map((s) => {
@@ -402,11 +508,15 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
             }
             return base;
           });
-          saveSessions(next);
+          nextState = next;
           return next;
         });
+        persist(nextState);
         autoIntroSent.current[active.id] = true;
-        try { localStorage.removeItem(AUTO_INTRO_FLAG_PREFIX + active.id); } catch {}
+        const ridKey = makeAutoIntroKey(active.id);
+        if (ridKey) {
+          try { localStorage.removeItem(ridKey); } catch {}
+        }
         setPendingAutoIntroId(null);
       } catch (_) {
         // 失敗時は黙ってスキップ
@@ -416,7 +526,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
       }
     };
     autoIntro();
-  }, [active, sending, pendingAutoIntroId, fetchSubjectName, fetchTopicName]);
+  }, [active, sending, pendingAutoIntroId, fetchSubjectName, fetchTopicName, persist, makeAutoIntroKey]);
 
   // 予備：提案カードの選択ハンドラ（未使用）
 
@@ -426,6 +536,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   }
 
   const showProfile = showProfileOnEmpty && (!active || active.messages.length === 0);
+  const showEmptyState = bootstrapped && sessions.length === 0;
 
   return (
     <div className="h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 overflow-hidden">
@@ -441,6 +552,8 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
           sessions={sessions}
           activeId={activeId ?? undefined}
           onNewChat={handleNewChat}
+          onRenameChat={handleRenameChat}
+          onDeleteChat={handleDeleteChat}
           onSelectChat={(id) => {
             setActiveId(id);
             router.push(`/chats/${id}`);
@@ -460,6 +573,29 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
               onSelectChat={(id) => { setActiveId(id); router.push(`/chats/${id}`); }}
               onLogout={() => signOut({ callbackUrl: '/login' })}
             />
+          ) : showEmptyState ? (
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="mx-auto w-full max-w-2xl px-6 md:px-8 text-center space-y-4">
+                <h1 className="text-2xl md:text-3xl font-semibold text-gray-800">チャットを始めましょう</h1>
+                <p className="text-sm text-gray-600">
+                  まだチャットがありません。新しいチャットを作成して、学習を開始してください。
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <button
+                    onClick={() => handleNewChat({})}
+                    className="rounded-xl bg-blue-600 text-white px-5 py-2 text-sm shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors"
+                  >
+                    + 新しいチャットを作成
+                  </button>
+                  <button
+                    onClick={() => router.push('/')}
+                    className="rounded-xl border border-gray-300 px-5 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
+                    プロフィールを見る
+                  </button>
+                </div>
+              </div>
+            </div>
           ) : notFound ? (
             <div className="w-full h-full flex items-center justify-center">
               <div className="mx-auto w-full max-w-3xl px-6 md:px-8">

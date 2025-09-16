@@ -22,18 +22,34 @@
 ## 開発（フロントエンド）
 
 - 技術構成: Next.js (App Router) + React + Tailwind CSS
-- チャットUI: ChatGPT風のメイン画面を `src/app/page.tsx` で提供しています。
+- チャットUI: ChatGPT風のメイン画面を `apps/web/src/app/page.tsx` で提供しています。
+
+### リポジトリ構成（モノレポ）
+
+```
+apps/
+  web/            # 既存 Next.js アプリ
+packages/
+  api-client/     # Web/Mobile 共通の API クライアント（準備中）
+  auth-shared/    # 認証・トークン共通ロジック（準備中）
+  db/             # Drizzle スキーマ共有（準備中）
+  types/          # 型定義パッケージ（準備中）
+openapi/
+  mobile-bff-v1.yaml  # Mobile BFF の OpenAPI 定義
+```
+
+ルート `package.json` は npm workspaces を利用し、`npm run dev` などのコマンドは `apps/web` のスクリプトへ委譲しています。
 
 ### 認証（即席: Google + Auth.js/NextAuth）
 
 - 目的: 未ログインユーザーのアクセスを遮断し、ユーザー識別を可能にするための暫定措置。
 - 方式: next-auth v4 + Google プロバイダ。`/login` でログイン、ミドルウェアで保護。
 - 主なファイル:
-  - `src/auth.ts`: 認証設定（ドメイン制限は `ALLOWED_EMAIL_DOMAIN`）
-  - `src/app/api/auth/[...nextauth]/route.ts`: 認証ハンドラ
-  - `src/middleware.ts`: ルート保護（`/login` と `/api/auth` は除外）
-  - `src/app/login/page.tsx`: ログインページ（Google ボタン）
-  - `src/components/auth/UserMenu.tsx`: ヘッダーのユーザーメニュー（ログアウト）
+  - `apps/web/src/auth.ts`: 認証設定（ドメイン制限は `ALLOWED_EMAIL_DOMAIN`）
+  - `apps/web/src/app/api/auth/[...nextauth]/route.ts`: 認証ハンドラ
+  - `apps/web/src/middleware.ts`: ルート保護（`/login` と `/api/auth` は除外）
+  - `apps/web/src/app/login/page.tsx`: ログインページ（Google ボタン）
+  - `apps/web/src/components/auth/UserMenu.tsx`: ヘッダーのユーザーメニュー（ログアウト）
 
 セットアップ:
 
@@ -84,10 +100,10 @@ task dev
 - UIのみのデモであり、モデルAPIとの接続は未実装です。送信後はダミーの応答が表示されます。
 - 簡易な会話履歴を LocalStorage に保存します（ブラウザごとに保持）。
 - 主要ファイル:
-  - `src/components/ChatApp.tsx`: 画面全体のコンテナ
-  - `src/components/chat/*`: メッセージ表示・送信欄
-  - `src/components/sidebar/Sidebar.tsx`: 左サイドバー
-  - `src/types/chat.ts`: 型定義
+  - `apps/web/src/components/ChatApp.tsx`: 画面全体のコンテナ
+  - `apps/web/src/components/chat/*`: メッセージ表示・送信欄
+  - `apps/web/src/components/sidebar/Sidebar.tsx`: 左サイドバー
+  - `apps/web/src/types/chat.ts`: 型定義
 
 ---
 

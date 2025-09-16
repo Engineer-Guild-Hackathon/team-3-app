@@ -1,0 +1,642 @@
+openapi: 3.0.3
+info:
+  title: SPAR Mobile BFF API
+  version: 1.0.0
+  description: |
+    REST interface exposed by the mobile Backend-for-Frontend (BFF).
+    It mirrors the existing web Route Handlers while adding bearer-token
+    authentication, push-registration and in-app purchase verification
+    capabilities required by the native apps.
+  license:
+    name: Proprietary
+    url: https://spar-app.example/legal
+servers:
+  - url: https://api.spar-app.com
+    description: Production
+  - url: https://api-stg.spar-app.com
+    description: Staging
+  - url: http://127.0.0.1:3000
+    description: Local development proxy
+tags:
+  - name: Auth
+    description: OIDC code exchange and token lifecycle endpoints.
+  - name: Users
+    description: Session-aware user profile endpoints.
+  - name: Chats
+    description: Conversation lifecycle (list, create, update, messages, LLM run).
+  - name: Push
+    description: Device token registration for push notifications.
+  - name: Billing
+    description: In-app purchase receipt verification and subscription sync.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ChatIdParam:
+      in: path
+      name: id
+      required: true
+      description: Chat session identifier (UUID string).
+      schema:
+        type: string
+        format: uuid
+  responses:
+    UnauthorizedError:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    TooManyRequestsError:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalServerError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          example: bad_request
+        message:
+          type: string
+          example: Invalid code verifier.
+    AuthStartMetadata:
+      type: object
+      required:
+        - authorizationEndpoint
+        - clientId
+        - redirectUri
+        - scope
+        - codeChallengeMethod
+      properties:
+        authorizationEndpoint:
+          type: string
+          format: uri
+        clientId:
+          type: string
+        redirectUri:
+          type: string
+          format: uri
+        scope:
+          type: string
+          example: openid profile email
+        codeChallengeMethod:
+          type: string
+          example: S256
+    AuthTokens:
+      type: object
+      required:
+        - accessToken
+        - accessTokenExpiresIn
+        - refreshToken
+        - refreshTokenExpiresAt
+        - deviceId
+      properties:
+        accessToken:
+          type: string
+        accessTokenExpiresIn:
+          type: integer
+          example: 900
+          description: Lifetime (seconds) of the issued access token.
+        refreshToken:
+          type: string
+        refreshTokenExpiresAt:
+          type: string
+          format: date-time
+        deviceId:
+          type: string
+          description: Device identifier bound to the refresh token.
+    Profile:
+      type: object
+      required:
+        - id
+        - name
+        - email
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+    ChatItem:
+      type: object
+      required:
+        - id
+        - title
+        - status
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          type: string
+          enum:
+            - in_progress
+            - ended
+        subject:
+          type: string
+          nullable: true
+        theme:
+          type: string
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+    ChatListResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatItem'
+    CreateChatRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        subject:
+          type: string
+        theme:
+          type: string
+    UpdateChatRequest:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+    Message:
+      type: object
+      required:
+        - id
+        - role
+        - content
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum:
+            - user
+            - assistant
+            - system
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    MessagesResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+    ChatMessageInput:
+      type: object
+      required:
+        - role
+        - content
+      properties:
+        role:
+          type: string
+          enum:
+            - user
+            - assistant
+            - system
+        content:
+          type: string
+    RunChatRequest:
+      type: object
+      required:
+        - history
+      properties:
+        chatId:
+          type: string
+          format: uuid
+        subject:
+          type: string
+        theme:
+          type: string
+        clientSessionId:
+          type: string
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessageInput'
+    ChatResult:
+      type: object
+      required:
+        - answer
+        - status
+      properties:
+        answer:
+          type: string
+        status:
+          type: integer
+          enum:
+            - -1
+            - 0
+            - 1
+    PushRegisterRequest:
+      type: object
+      required:
+        - platform
+        - token
+      properties:
+        platform:
+          type: string
+          enum:
+            - ios
+            - android
+        token:
+          type: string
+        deviceId:
+          type: string
+        model:
+          type: string
+        osVersion:
+          type: string
+    IapVerifyRequest:
+      type: object
+      required:
+        - platform
+        - receipt
+      properties:
+        platform:
+          type: string
+          enum:
+            - ios
+            - android
+        receipt:
+          type: string
+          description: Base64 (iOS) or JSON payload (Play Billing) of the purchase receipt.
+        deviceId:
+          type: string
+          description: Device identifier emitting the verification request.
+    IapVerifyResponse:
+      type: object
+      required:
+        - status
+        - productId
+      properties:
+        status:
+          type: string
+          enum:
+            - trial
+            - active
+            - grace
+            - paused
+            - canceled
+            - expired
+        productId:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+paths:
+  /api/v1/auth/start:
+    get:
+      tags: [Auth]
+      operationId: getAuthStartMetadata
+      summary: Retrieve OIDC metadata required to kick off PKCE flow.
+      security: []
+      responses:
+        '200':
+          description: Successful retrieval of metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthStartMetadata'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/v1/auth/callback:
+    get:
+      tags: [Auth]
+      operationId: exchangeAuthCode
+      summary: Exchange the authorization code for AppJWT + Refresh token pair.
+      security: []
+      parameters:
+        - in: query
+          name: code
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: state
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Code exchange succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokens'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refreshTokens
+      summary: Rotate refresh token and issue a new access/refresh token pair.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+                - deviceId
+              properties:
+                refreshToken:
+                  type: string
+                deviceId:
+                  type: string
+                  description: Device identifier previously associated with the refresh token.
+      responses:
+        '200':
+          description: Token rotation succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokens'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/v1/me:
+    get:
+      tags: [Users]
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      summary: Retrieve profile information of the authenticated user.
+      responses:
+        '200':
+          description: Authenticated user profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/v1/chats:
+    get:
+      tags: [Chats]
+      operationId: listChats
+      security:
+        - bearerAuth: []
+      summary: List chat sessions for the authenticated user (newest first).
+      parameters:
+        - in: query
+          name: limit
+          description: Maximum number of items to return.
+          schema:
+            type: integer
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: Chat list payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags: [Chats]
+      operationId: createChat
+      security:
+        - bearerAuth: []
+      summary: Create a new chat session.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChatRequest'
+      responses:
+        '201':
+          description: Chat session created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatItem'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/v1/chats/{id}:
+    patch:
+      tags: [Chats]
+      operationId: renameChat
+      security:
+        - bearerAuth: []
+      summary: Update metadata of a chat session.
+      parameters:
+        - $ref: '#/components/parameters/ChatIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateChatRequest'
+      responses:
+        '204':
+          description: Chat updated.
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags: [Chats]
+      operationId: deleteChat
+      security:
+        - bearerAuth: []
+      summary: Delete a chat session and associated messages.
+      parameters:
+        - $ref: '#/components/parameters/ChatIdParam'
+      responses:
+        '204':
+          description: Chat deleted.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/v1/chats/{id}/messages:
+    get:
+      tags: [Chats]
+      operationId: listChatMessages
+      security:
+        - bearerAuth: []
+      summary: Fetch message history for a chat.
+      parameters:
+        - $ref: '#/components/parameters/ChatIdParam'
+        - in: query
+          name: limit
+          description: Maximum number of messages to return.
+          schema:
+            type: integer
+            maximum: 1000
+            default: 100
+      responses:
+        '200':
+          description: Message list payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagesResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/v1/chat:
+    post:
+      tags: [Chats]
+      operationId: runChatCompletion
+      security:
+        - bearerAuth: []
+      summary: Execute an LLM turn and return the assistant answer.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunChatRequest'
+      responses:
+        '200':
+          description: LLM response payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/v1/push/register:
+    post:
+      tags: [Push]
+      operationId: registerPushToken
+      security:
+        - bearerAuth: []
+      summary: Register or refresh a device push token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushRegisterRequest'
+      responses:
+        '204':
+          description: Push token stored.
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/v1/iap/verify:
+    post:
+      tags: [Billing]
+      operationId: verifyIapReceipt
+      security:
+        - bearerAuth: []
+      summary: Validate store purchase receipts and synchronize subscription state.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IapVerifyRequest'
+      responses:
+        '200':
+          description: Receipt processed. Returned status reflects the canonical subscription state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IapVerifyResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          description: Receipt rejected or stale.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
