@@ -40,6 +40,22 @@ export async function createChat(
   return data.result;
 }
 
+export async function renameChat(id: string, title: string, client?: ApiClient) {
+  const exec = client ? createFetch(client) : apiFetchJson;
+  await exec(endpoints.chatById(id), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+}
+
+export async function deleteChat(id: string, client?: ApiClient) {
+  const exec = client ? createFetch(client) : apiFetchJson;
+  await exec(endpoints.chatById(id), {
+    method: "DELETE",
+  });
+}
+
 /**
  * チャット実行（LLM）
  */

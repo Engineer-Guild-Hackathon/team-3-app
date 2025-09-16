@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, MessageSquare, ChevronLeft, ChevronRight, User } from 'lucide-react';
+import { Plus, MessageSquare, ChevronLeft, ChevronRight, User, Pencil, Trash2 } from 'lucide-react';
 import type { ChatSession as CoreSession } from "@/types/chat";
 
 type Props = {
@@ -9,12 +9,14 @@ type Props = {
   activeId?: string;
   onSelectChat: (id: string) => void;
   onNewChat: () => void;
+  onRenameChat: (id: string) => void;
+  onDeleteChat: (id: string) => void;
   isExpanded: boolean;
   onToggleExpanded: () => void;
   onNavigateToProfile?: () => void;
 };
 
-export default function ChatSidebar({ sessions, activeId, onSelectChat, onNewChat, isExpanded, onToggleExpanded, onNavigateToProfile }: Props) {
+export default function ChatSidebar({ sessions, activeId, onSelectChat, onNewChat, onRenameChat, onDeleteChat, isExpanded, onToggleExpanded, onNavigateToProfile }: Props) {
   const chatSessions = sessions.map((s) => ({
     id: s.id,
     title: s.title || '(無題)',
@@ -62,15 +64,48 @@ export default function ChatSidebar({ sessions, activeId, onSelectChat, onNewCha
                     <div className="p-2 space-y-2">
                       {chatSessions.length > 0 ? (
                         chatSessions.map((session) => (
-                          <motion.button key={session.id} onClick={() => onSelectChat(session.id)} whileHover={{ y: -2 }} whileTap={{ y: 0 }} className={`w-full text-left p-3 rounded-xl backdrop-blur-xl border transition-all duration-200 ${activeId === session.id ? 'bg-blue-500/20 border-blue-500/30 shadow-lg shadow-blue-500/10' : 'bg-white/5 border-white/10 hover:bg-white/10 shadow-lg shadow-black/5'}`}>
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="text-sm font-medium text-gray-800 truncate">{session.title}</div>
-                                <div className="text-xs text-gray-500 truncate">{session.lastMessage || '...'}</div>
+                          <motion.div key={session.id} className="relative">
+                            <motion.div
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => onSelectChat(session.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  onSelectChat(session.id);
+                                }
+                              }}
+                              whileHover={{ y: -2 }}
+                              whileTap={{ y: 0 }}
+                              className={`group w-full text-left p-3 rounded-xl backdrop-blur-xl border transition-all duration-200 cursor-pointer ${activeId === session.id ? 'bg-blue-500/20 border-blue-500/30 shadow-lg shadow-blue-500/10' : 'bg-white/5 border-white/10 hover:bg-white/10 shadow-lg shadow-black/5'}`}
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-medium text-gray-800 truncate">{session.title}</div>
+                                  <div className="text-xs text-gray-500 truncate">{session.lastMessage || '...'}</div>
+                                </div>
+                                <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); onRenameChat(session.id); }}
+                                    className="p-1 rounded-lg hover:bg-white/30 text-gray-500"
+                                    aria-label="チャット名を変更"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); onDeleteChat(session.id); }}
+                                    className="p-1 rounded-lg hover:bg-red-100 text-red-500"
+                                    aria-label="チャットを削除"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                                <div className="text-[10px] text-gray-400 flex-shrink-0 group-hover:hidden">{session.timestamp}</div>
                               </div>
-                              <div className="text-[10px] text-gray-400 flex-shrink-0">{session.timestamp}</div>
-                            </div>
-                          </motion.button>
+                            </motion.div>
+                          </motion.div>
                         ))
                       ) : (
                         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.2, ease: [0.4, 0, 0.2, 1] } }} className="text-center py-12">
