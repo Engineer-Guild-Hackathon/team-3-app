@@ -1,7 +1,7 @@
 // プロトタイプ用スキーマ定義（Drizzle ORM, PostgreSQL）
 // 仕様: docs/db-prototype-spec.md 準拠
 
-import { pgTable, uuid, text, timestamp, primaryKey, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, primaryKey, boolean, jsonb } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 // users
@@ -97,3 +97,39 @@ export const userSubjectPrefs = pgTable('user_subject_prefs', {
 // 備考:
 // - Drizzle の CHECK 制約は table builder で sql を使って付与
 // - VIEW (user_tag_mastery_v) はマイグレーションSQLで作成する運用を想定
+
+export const pushTokens = pgTable('push_tokens', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  deviceId: text('device_id').notNull(),
+  platform: text('platform').notNull(),
+  token: text('token').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.userId, t.deviceId] }),
+  platformCk: sql`CHECK (${t.platform.name} IN ('ios','android'))`,
+}));
+
+export const devices = pgTable('devices', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  model: text('model'),
+  osVersion: text('os_version'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const iapReceipts = pgTable('iap_receipts', {
+  receiptId: text('receipt_id').primaryKey(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  platform: text('platform').notNull(),
+  productId: text('product_id').notNull(),
+  status: text('status').notNull(),
+  purchaseAt: timestamp('purchase_at', { withTimezone: true }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  rawPayload: jsonb('raw_payload'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  platformCk: sql`CHECK (${t.platform.name} IN ('ios','android'))`,
+}));
