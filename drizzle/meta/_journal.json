@@ -36,6 +36,13 @@
       "when": 1757659000003,
       "tag": "0004_add_topic_id_to_chats",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1757659005000,
+      "tag": "0005_mobile_support_tables",
+      "breakpoints": true
     }
   ]
 }

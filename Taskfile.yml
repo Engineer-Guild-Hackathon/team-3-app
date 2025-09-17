@@ -52,6 +52,28 @@ tasks:
       - echo "Stopping dev containers..."
       - docker compose -f docker-compose.dev.yml down --remove-orphans
 
+  mobile:dev:
+    desc: Run Expo dev server (Android emulator/Expo Go)
+    dir: apps/mobile
+    interactive: true
+    env:
+      ANDROID_HOME: "/usr/lib/android-sdk"
+      ANDROID_SDK_ROOT: "/usr/lib/android-sdk"
+    cmds:
+      - npm install --no-audit --no-fund
+      - npx expo start --tunnel
+
+  mobile:dev:clear:
+    desc: Run Expo dev server with cache clear
+    dir: apps/mobile
+    interactive: true
+    env:
+      ANDROID_HOME: "/usr/lib/android-sdk"
+      ANDROID_SDK_ROOT: "/usr/lib/android-sdk"
+    cmds:
+      - npm install --no-audit --no-fund
+      - npx expo start --tunnel --clear
+
   # --- Database (Docker Compose + Drizzle) ---------------------------------
   db:up:
     desc: Start Postgres(17) + web (detached)
@@ -98,6 +120,9 @@ tasks:
       - echo "Check pgcrypto extension" && docker compose -f docker-compose.dev.yml exec db psql -U dev -d team3app_dev -c '\dx pgcrypto' || true
       - echo "Check tables" && docker compose -f docker-compose.dev.yml exec db psql -U dev -d team3app_dev -c '\dt' || true
       - echo "Check views" && docker compose -f docker-compose.dev.yml exec db psql -U dev -d team3app_dev -c '\dv' || true
+      - echo "Check mobile tables" && docker compose -f docker-compose.dev.yml exec db psql -U dev -d team3app_dev -c '\d push_tokens' || true
+      - docker compose -f docker-compose.dev.yml exec db psql -U dev -d team3app_dev -c '\d devices' || true
+      - docker compose -f docker-compose.dev.yml exec db psql -U dev -d team3app_dev -c '\d iap_receipts' || true
 
   # --- Build only (Staging/Production) -------------------------------------
   build:stg:

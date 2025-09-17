@@ -5,6 +5,7 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  transpilePackages: ['@team3/api-client', '@team3/auth-shared', '@team3/db'],
   // 外部アバター画像の表示許可（Google ログイン画像など）
   images: {
     remotePatterns: [
