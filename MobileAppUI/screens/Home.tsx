@@ -7,28 +7,49 @@ import HistoryDrawer from "../components/HistoryDrawer";
 import HomeMainArea from "../components/HomeMainArea";
 import { StyleVariable } from "../GlobalStyles";
 import type { ChatHistoryEntry } from "../components/types";
+import { SAMPLE_THREADS } from "../data/sampleThreads";
+import type { RootStackParamList } from "../navigation/types";
+import { buildHistoryEntry } from "../utils/chatHistory";
 
-const SAMPLE_HISTORY: ChatHistoryEntry[] = [
-  { id: "1", title: "最近の質問", snippet: "チャットの流れを教えて", timestamp: "12:30", unread: true },
-  { id: "2", title: "AI 相談", snippet: "分析レポートをまとめて", timestamp: "12:08" },
-  { id: "3", title: "設計レビュー", snippet: "画面遷移について", timestamp: "昨日" },
-  { id: "4", title: "議事録生成", snippet: "結論を要約", timestamp: "2日前" },
-  { id: "5", title: "プロジェクト計画", snippet: "次のステップは？", timestamp: "3日前" },
-  { id: "6", title: "技術サポート", snippet: "エラーメッセージの意味", timestamp: "4日前" },
-  { id: "7", title: "マーケティング戦略", snippet: "ターゲット市場の分析", timestamp: "5日前" },
-  { id: "8", title: "製品フィードバック", snippet: "改善点を提案", timestamp: "6日前" },
-  { id: "9", title: "競合分析", snippet: "主要な競合他社は？", timestamp: "1週間前" },
-  { id: "10", title: "ユーザーインタビュー", snippet: "インサイトを共有", timestamp: "1週間前" },
-];
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-const Home = () => {
+const SAMPLE_HISTORY: ChatHistoryEntry[] = SAMPLE_THREADS.map((thread) =>
+  buildHistoryEntry(thread),
+);
+
+type HomeScreenProps = NativeStackScreenProps<RootStackParamList, "Home">;
+
+const Home = ({ navigation }: HomeScreenProps) => {
+  const [activeHistoryId, setActiveHistoryId] = React.useState<string>(
+    SAMPLE_HISTORY[0]?.id ?? "",
+  );
+
+  const handleSelectHistory = React.useCallback(
+    (entry: ChatHistoryEntry) => {
+      setActiveHistoryId(entry.id);
+      navigation.navigate("Chat", { threadId: entry.id });
+    },
+    [navigation],
+  );
+
+  const handleCreateNewChat = React.useCallback(() => {
+    navigation.navigate("Chat", { createNew: true });
+  }, [navigation]);
+
   return (
     <PageShell
       headerConfig={homeHeaderConfig}
       rightActionVariant="settings"
       contentStyle={styles.shellContent}
-      drawer={<HistoryDrawer entries={SAMPLE_HISTORY} activeId="1" />}
+      drawer={
+        <HistoryDrawer
+          entries={SAMPLE_HISTORY}
+          activeId={activeHistoryId}
+          onSelect={handleSelectHistory}
+        />
+      }
       drawerWidth={320}
+      onCreateNewChat={handleCreateNewChat}
     >
       <ScrollView
         style={styles.scroll}
@@ -36,7 +57,11 @@ const Home = () => {
       >
         <View style={[styles.mainarea, styles.mainareaFlexBox]}>
           <View style={[styles.contentarea, styles.mainareaFlexBox]}>
-            <HomeMainArea historyEntries={SAMPLE_HISTORY} activeHistoryId="1" />
+            <HomeMainArea
+              historyEntries={SAMPLE_HISTORY}
+              activeHistoryId={activeHistoryId}
+              onSelectHistory={handleSelectHistory}
+            />
           </View>
         </View>
       </ScrollView>

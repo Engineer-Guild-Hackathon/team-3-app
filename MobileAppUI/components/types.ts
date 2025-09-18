@@ -12,3 +12,10 @@ export type ChatMessage = {
   text: string;
   createdAt: string;
 };
+
+export type ChatThread = {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  unread?: boolean;
+};

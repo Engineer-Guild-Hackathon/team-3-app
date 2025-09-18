@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import Header from "./Header";
+import CreateIcon from "../assets/Create.svg";
 import HomeIcon from "../assets/Home.svg";
 import SettingIcon from "../assets/Setting.svg";
 import { Color, StyleVariable } from "../GlobalStyles";
@@ -28,6 +29,7 @@ export type PageShellProps = {
   drawer?: React.ReactNode;
   drawerWidth?: number;
   drawerTransitionDuration?: number;
+  onCreateNewChat?: () => void;
 };
 
 const resolveButton = (
@@ -82,17 +84,84 @@ const ensureRightAction = (
   return nextActions;
 };
 
+const CREATE_LABELS = ["新規", "新しい質問"];
+
+const isCreateAction = (action: HeaderButtonConfig): boolean => {
+  const label = action.label ?? action.accessibilityLabel ?? "";
+  return CREATE_LABELS.some((keyword) => label?.includes?.(keyword));
+};
+
+const mergeCreateHandler = (
+  action: HeaderButtonConfig,
+  handler: () => void,
+): HeaderButtonConfig => {
+  const originalOnPress = action.onPress;
+
+  return {
+    ...action,
+    onPress: (event: GestureResponderEvent) => {
+      handler();
+      originalOnPress?.(event);
+    },
+  };
+};
+
+const attachCreateAction = (
+  actions: HeaderButtonConfig[] | undefined,
+  handler?: () => void,
+): HeaderButtonConfig[] | undefined => {
+  if (!actions) {
+    return handler
+      ? [
+          {
+            Icon: CreateIcon,
+            label: "新規",
+            accessibilityLabel: "新規",
+            onPress: (_event: GestureResponderEvent) => {
+              handler();
+            },
+          },
+        ]
+      : actions;
+  }
+
+  if (!handler) {
+    return actions.map((action) => ({ ...action }));
+  }
+
+  const nextActions = actions.map((action) =>
+    isCreateAction(action) ? mergeCreateHandler(action, handler) : { ...action },
+  );
+
+  if (!nextActions.some(isCreateAction)) {
+    nextActions.unshift({
+      Icon: CreateIcon,
+      label: "新規",
+      accessibilityLabel: "新規",
+      onPress: (_event: GestureResponderEvent) => {
+        handler();
+      },
+    });
+  }
+
+  return nextActions;
+};
+
 const buildHeaderConfig = (
   config: HeaderConfig | undefined,
   variant: PageShellRightAction,
+  onCreateNewChat?: () => void,
 ): HeaderConfig => {
   const base = config ?? defaultHeaderConfig;
+  const baseActions = config?.actions ?? base.actions;
+  const actionsWithRight = ensureRightAction(baseActions, variant);
+  const actionsWithCreate = attachCreateAction(actionsWithRight, onCreateNewChat);
 
   return {
     ...base,
     menu: resolveButton(config?.menu, base.menu),
     logo: resolveLogo(config?.logo, base.logo) ?? undefined,
-    actions: ensureRightAction(config?.actions ?? base.actions, variant),
+    actions: actionsWithCreate,
   };
 };
 
@@ -105,10 +174,11 @@ const PageShell = ({
   drawer,
   drawerWidth = 320,
   drawerTransitionDuration = 220,
+  onCreateNewChat,
 }: PageShellProps) => {
   const resolvedHeaderConfig = React.useMemo(
-    () => buildHeaderConfig(headerConfig, rightActionVariant),
-    [headerConfig, rightActionVariant],
+    () => buildHeaderConfig(headerConfig, rightActionVariant, onCreateNewChat),
+    [headerConfig, onCreateNewChat, rightActionVariant],
   );
 
   const [isDrawerOpen, setIsDrawerOpen] = React.useState(false);
@@ -118,22 +188,38 @@ const PageShell = ({
     setIsDrawerOpen((prev) => !prev);
   }, []);
 
+  const enhancedDrawer = React.useMemo(() => {
+    if (!drawer || !onCreateNewChat || !React.isValidElement(drawer)) {
+      return drawer;
+    }
+
+    const props = drawer.props as { onCreatePress?: () => void };
+    const originalOnCreate = props?.onCreatePress;
+
+    return React.cloneElement(drawer as React.ReactElement<any>, {
+      onCreatePress: () => {
+        onCreateNewChat();
+        originalOnCreate?.();
+      },
+    } as Record<string, unknown>);
+  }, [drawer, onCreateNewChat]);
+
   React.useEffect(() => {
-    if (!drawer && isDrawerOpen) {
+    if (!enhancedDrawer && isDrawerOpen) {
       setIsDrawerOpen(false);
     }
-  }, [drawer, isDrawerOpen]);
+  }, [enhancedDrawer, isDrawerOpen]);
 
   React.useEffect(() => {
     Animated.timing(drawerAnim.current, {
-      toValue: isDrawerOpen && drawer ? 1 : 0,
+      toValue: isDrawerOpen && enhancedDrawer ? 1 : 0,
       duration: drawerTransitionDuration,
       useNativeDriver: true,
     }).start();
-  }, [drawer, drawerTransitionDuration, isDrawerOpen]);
+  }, [drawerTransitionDuration, enhancedDrawer, isDrawerOpen]);
 
   const headerWithDrawer = React.useMemo(() => {
-    if (!drawer || !resolvedHeaderConfig.menu) {
+    if (!enhancedDrawer || !resolvedHeaderConfig.menu) {
       return resolvedHeaderConfig;
     }
 
@@ -149,7 +235,7 @@ const PageShell = ({
         },
       },
     };
-  }, [drawer, resolvedHeaderConfig, toggleDrawer]);
+  }, [enhancedDrawer, resolvedHeaderConfig, toggleDrawer]);
 
   const drawerTranslateX = drawerAnim.current.interpolate({
     inputRange: [0, 1],
@@ -166,7 +252,7 @@ const PageShell = ({
       >
         <View style={styles.contentWrapper}>
           <View style={[styles.content, contentStyle]}>{children}</View>
-          {drawer ? (
+          {enhancedDrawer ? (
             <Animated.View
               style={[
                 styles.drawerContainer,
@@ -176,7 +262,7 @@ const PageShell = ({
                 },
               ]}
             >
-              <View style={styles.drawerInner}>{drawer}</View>
+              <View style={styles.drawerInner}>{enhancedDrawer}</View>
             </Animated.View>
           ) : null}
         </View>

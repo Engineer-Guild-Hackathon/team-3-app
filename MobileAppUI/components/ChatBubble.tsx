@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
   },
   userText: {
     color: Color.colorWhite,
-    textAlign: "right",
+    textAlign: "left",
   },
   assistantText: {
     color: Color.colorTextPrimary,

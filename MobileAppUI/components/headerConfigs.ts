@@ -33,15 +33,15 @@ export const defaultHeaderConfig = homeHeaderConfig;
 
 export const chatHeaderConfig: HeaderConfig = {
   menu: {
-    label: "ホーム",
-    accessibilityLabel: "ホーム",
-    Icon: HomeIcon,
+    label: "履歴",
+    accessibilityLabel: "履歴",
+    Icon: MenuIcon,
   },
   actions: [
     {
-      label: "設定",
-      accessibilityLabel: "設定",
-      Icon: SettingIcon,
+      label: "ホーム",
+      accessibilityLabel: "ホーム",
+      Icon: HomeIcon,
     },
   ],
   logo: {

@@ -6,8 +6,9 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import Chat from "./screens/Chat";
 import Home from "./screens/Home";
+import type { RootStackParamList } from "./navigation/types";
 
-const Stack = createNativeStackNavigator();
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const App = () => {
   const [fontsLoaded, error] = useFonts({
@@ -31,7 +32,7 @@ const App = () => {
             options={{ headerShown: false }}
           />
           <Stack.Screen
-            name="Avatar"
+            name="Chat"
             component={Chat}
             options={{ headerShown: false }}
           />
