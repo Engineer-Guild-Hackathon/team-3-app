@@ -52,3 +52,5 @@ next-env.d.ts
 .cache/
 
 _ui_sample/
+
+.http

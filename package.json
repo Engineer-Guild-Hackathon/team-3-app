@@ -15,6 +15,10 @@
     "lint:ci": "npm run lint:ci --workspace @team3/web",
     "db:generate": "npm run db:generate --workspace @team3/web",
     "db:migrate": "npm run db:migrate --workspace @team3/web",
-    "db:studio": "npm run db:studio --workspace @team3/web"
+    "db:studio": "npm run db:studio --workspace @team3/web",
+    "test": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
   }
 }

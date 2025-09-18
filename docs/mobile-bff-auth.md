@@ -24,6 +24,11 @@
 4. 応答に含まれる `accessToken` と `refreshToken` を安全に保存（SecureStore）。
 5. `POST /api/v1/auth/refresh` に `{ refreshToken, deviceId }` を渡してローテーション。
 
+## 自動テスト
+
+- `npm run test` で Vitest を実行し、トークンユーティリティと `/api/v1/auth/*` のハンドラを検証できます。
+- 主要な依存はモックされるため、外部 OIDC や DB を起動せずにロジックの regresion を検知できます。
+
 ## DB 永続化
 
 - `refresh_tokens` … ハッシュ化したリフレッシュトークンを保存。`metadata.scopes` に発行スコープを保持。
