@@ -2,23 +2,24 @@ import * as React from "react";
 import { Text, StyleSheet, View } from "react-native";
 import IconButton from "./IconButton";
 import { StyleVariable, Color, FontSize, FontFamily } from "../GlobalStyles";
+import CreateIcon from "../assets/Create.svg";
 
-export type NewChatButtonType = {
-  /** Variant props */
-  drawerOpen?: boolean;
+export type NewChatButtonProps = {
+  label?: string;
+  onPress?: () => void;
 };
 
-const NewChatButton = ({ drawerOpen = false }: NewChatButtonType) => {
+const NewChatButton = ({ label = "新しい質問", onPress }: NewChatButtonProps) => {
   return (
-    <View style={styles.newchatbutton}>
-      <IconButton />
-      <Text style={styles.text}>新しい質問</Text>
+    <View style={styles.container}>
+      <IconButton Icon={CreateIcon} onPress={onPress} accessibilityLabel={label} />
+      <Text style={styles.text}>{label}</Text>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  newchatbutton: {
+  container: {
     alignSelf: "stretch",
     borderRadius: StyleVariable.radiusMd,
     backgroundColor: Color.colorCornflowerblue200,
@@ -39,4 +40,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default NewChatButton;
+export default React.memo(NewChatButton);

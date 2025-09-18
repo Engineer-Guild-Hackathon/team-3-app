@@ -1,6 +1,6 @@
-import React, { useMemo } from "react";
-import { StyleSheet, View, Text, Pressable } from "react-native";
-import Icon1 from "./Icon1";
+import * as React from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+
 import UnreadDot from "../assets/UnreadDot.svg";
 import {
   Color,
@@ -10,147 +10,117 @@ import {
   Padding,
   Gap,
 } from "../GlobalStyles";
+import Avatar from "./Avatar";
+import type { ChatHistoryEntry } from "./types";
 
-export type ItemType = {
-  showUnreadDotIcon?: boolean;
-
-  /** Variant props */
-  selected?: boolean;
-  size?: string;
-
-  /** Style props */
-  timeWidth?: number | string;
-  timeHeight?: number | string;
-  timeDisplay?: string;
-  timeAlignItems?: string;
-  timeJustifyContent?: string;
-
-  /** Action props */
-  onItemPress?: () => void;
+export type ItemProps = ChatHistoryEntry & {
+  isActive?: boolean;
+  onPress?: () => void;
 };
 
-const getStyleValue = (key: string, value: string | number | undefined) => {
-  if (value === undefined) return;
-  return { [key]: value === "unset" ? undefined : value };
-};
 const Item = ({
-  selected = true,
-  size = "default",
-  onItemPress,
-  showUnreadDotIcon,
-  timeWidth,
-  timeHeight,
-  timeDisplay,
-  timeAlignItems,
-  timeJustifyContent,
-}: ItemType) => {
-  const timeStyle = useMemo(() => {
-    return {
-      ...getStyleValue("width", timeWidth),
-      ...getStyleValue("height", timeHeight),
-      ...getStyleValue("display", timeDisplay),
-      ...getStyleValue("alignItems", timeAlignItems),
-      ...getStyleValue("justifyContent", timeJustifyContent),
-    };
-  }, [timeWidth, timeHeight, timeDisplay, timeAlignItems, timeJustifyContent]);
-
+  title,
+  snippet,
+  timestamp,
+  unread,
+  isActive = false,
+  onPress,
+}: ItemProps) => {
   return (
-    <View
-      style={[styles.historyitem, styles.rowtitleFlexBox]}
-      onPress={onItemPress}
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.container,
+        isActive && styles.active,
+        pressed && styles.pressed,
+      ]}
+      android_ripple={{ color: Color.colorCornflowerblue200 }}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}${unread ? " 未読" : ""}`}
     >
       <View style={styles.leading}>
-        <Icon1 selected={false} size="default" />
+        <Avatar size={StyleVariable.iconSizeLg} />
       </View>
       <View style={styles.content}>
-        <View style={[styles.rowtitle, styles.rowtitleFlexBox]}>
-          {!!showUnreadDotIcon && (
-            <UnreadDot style={styles.unreaddotIcon} width={8} height={8} />
-          )}
-          <Text style={[styles.title, styles.subFlexBox]}>
-            aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        <View style={styles.titleRow}>
+          {unread ? <UnreadDot style={styles.unreadDot} width={8} height={8} /> : null}
+          <Text numberOfLines={1} style={styles.title}>
+            {title}
           </Text>
         </View>
-        <Text style={[styles.sub, styles.subTypo]}>aaaaaaaaaaaaaa</Text>
+        {snippet ? (
+          <Text numberOfLines={1} style={styles.subtitle}>
+            {snippet}
+          </Text>
+        ) : null}
       </View>
-      <View style={[styles.trailing, styles.subFlexBox]}>
-        <Text style={[styles.time, styles.subTypo, timeStyle]}>12:30</Text>
-      </View>
-    </View>
+      {timestamp ? (
+        <View style={styles.trailing}>
+          <Text style={styles.timestamp}>{timestamp}</Text>
+        </View>
+      ) : null}
+    </Pressable>
   );
 };
 
 const styles = StyleSheet.create({
-  rowtitleFlexBox: {
-    alignItems: "center",
-    alignSelf: "stretch",
+  container: {
     flexDirection: "row",
-    overflow: "hidden",
-  },
-  subFlexBox: {
-    alignItems: "flex-end",
-    overflow: "hidden",
-    alignSelf: "stretch",
-  },
-  subTypo: {
-    color: Color.colorTextSecondary,
-    lineHeight: 22,
-    fontSize: FontSize.size_14,
-    fontFamily: FontFamily.notoSansJPRegular,
-  },
-  historyitem: {
+    alignItems: "center",
     borderRadius: StyleVariable.radiusMd1,
     backgroundColor: Color.colorChatDefault,
     paddingHorizontal: StyleVariable.space16,
     paddingVertical: StyleVariable.space8,
     gap: StyleVariable.space12,
-    justifyContent: "center",
+  },
+  active: {
+    backgroundColor: Color.colorCornflowerblue100,
+  },
+  pressed: {
+    opacity: 0.8,
   },
   leading: {
     flexDirection: "row",
-    overflow: "hidden",
+    alignItems: "center",
   },
   content: {
-    paddingHorizontal: Padding.p_10,
-    paddingTop: Padding.p_10,
-    paddingBottom: Padding.p_4,
-    gap: StyleVariable.space4,
     flex: 1,
-    overflow: "hidden",
+    gap: StyleVariable.space4,
+    paddingHorizontal: Padding.p_10,
   },
-  rowtitle: {
-    height: 20,
-    gap: Gap.gap_8,
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Gap.gap_4,
   },
-  unreaddotIcon: {
+  unreadDot: {
     width: 8,
     height: 8,
   },
   title: {
+    flex: 1,
     fontSize: FontSize.size_18,
     lineHeight: 28,
     color: Color.colorTextPrimary,
-    display: "flex",
-    textAlign: "left",
-    alignItems: "flex-end",
     fontFamily: FontFamily.notoSansJPRegular,
-    flex: 1,
   },
-  sub: {
-    height: 22,
-    alignItems: "flex-end",
-    overflow: "hidden",
-    alignSelf: "stretch",
-    display: "flex",
-    textAlign: "left",
+  subtitle: {
+    fontSize: FontSize.size_14,
+    lineHeight: 22,
+    color: Color.colorTextSecondary,
+    fontFamily: FontFamily.notoSansJPRegular,
   },
   trailing: {
-    padding: Padding.p_10,
-    justifyContent: "center",
+    paddingHorizontal: Padding.p_10,
+    alignItems: "flex-end",
   },
-  time: {
+  timestamp: {
+    fontSize: FontSize.size_14,
+    lineHeight: 22,
+    color: Color.colorTextSecondary,
+    fontFamily: FontFamily.notoSansJPRegular,
     textAlign: "center",
   },
 });
 
-export default Item;
+export default React.memo(Item);

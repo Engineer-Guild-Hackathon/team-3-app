@@ -1,46 +1,40 @@
 import * as React from "react";
-import { StyleSheet, View } from "react-native";
-import Avatar2 from "../assets/Avatar.svg";
-import { Border, Color } from "../GlobalStyles";
+import { StyleProp, StyleSheet, View, ViewStyle } from "react-native";
 
-export type AvatarType = {
-  /** Variant props */
-  size?: string;
+import AvatarSvg from "../assets/Avatar.svg";
+import { Color } from "../GlobalStyles";
+
+export type AvatarProps = {
+  size?: number;
+  backgroundColor?: string;
+  style?: StyleProp<ViewStyle>;
 };
 
-const Avatar = ({ size = "S" }: AvatarType) => {
+const Avatar = ({
+  size = 48,
+  backgroundColor = Color.highlightLightest,
+  style,
+}: AvatarProps) => {
+  const dimensionStyle: ViewStyle = {
+    width: size,
+    height: size,
+    borderRadius: size / 2,
+    backgroundColor,
+  };
+
   return (
-    <View style={[styles.avatar, styles.avatarPosition]}>
-      <Avatar2 style={[styles.avatarIcon, styles.avatarPosition]} />
+    <View style={[styles.container, dimensionStyle, style]}>
+      <AvatarSvg width={size * 0.6} height={size * 0.6} />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  avatarPosition: {
+  container: {
+    alignItems: "center",
+    justifyContent: "center",
     overflow: "hidden",
-    position: "absolute",
-  },
-  avatar: {
-    height: "100%",
-    width: "100%",
-    top: "0%",
-    right: "0%",
-    bottom: "0%",
-    left: "0%",
-    borderRadius: Border.br_16,
-    backgroundColor: Color.highlightLightest,
-  },
-  avatarIcon: {
-    height: "105%",
-    width: "60%",
-    top: "20%",
-    right: "20%",
-    bottom: "-25%",
-    left: "20%",
-    maxWidth: "100%",
-    maxHeight: "100%",
   },
 });
 
-export default Avatar;
+export default React.memo(Avatar);

@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Text, StyleSheet, View } from "react-native";
-import Avatar1 from "./Avatar1";
+
+import Avatar from "./Avatar";
 import {
   Border,
   Color,
@@ -9,43 +10,36 @@ import {
   FontFamily,
 } from "../GlobalStyles";
 
-export type UserInfoType = {
-  /** Variant props */
-  drawerOpen?: boolean;
+export type UserInfoProps = {
+  name?: string;
+  avatarSize?: number;
 };
 
-const UserInfo = ({ drawerOpen = false }: UserInfoType) => {
+const UserInfo = ({ name = "UserName", avatarSize = 48 }: UserInfoProps) => {
   return (
-    <View style={styles.userinfo}>
-      <Avatar1 />
-      <Text style={styles.username}>UserName</Text>
+    <View style={styles.container}>
+      <Avatar size={avatarSize} />
+      <Text style={styles.username}>{name}</Text>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  userinfo: {
+  container: {
     borderRadius: Border.br_12,
     backgroundColor: Color.colorGray100,
-    overflow: "hidden",
     flexDirection: "row",
-    justifyContent: "center",
+    alignItems: "center",
     padding: StyleVariable.spaceSm,
     gap: StyleVariable.spaceSm,
-    alignItems: "center",
   },
   username: {
-    height: 30,
-    width: 123,
     fontSize: FontSize.size_24,
     lineHeight: 30,
     fontWeight: "800",
     fontFamily: FontFamily.roundedMplus1c,
     color: Color.colorBlack,
-    textAlign: "left",
-    display: "flex",
-    alignItems: "center",
   },
 });
 
-export default UserInfo;
+export default React.memo(UserInfo);

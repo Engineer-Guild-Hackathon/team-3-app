@@ -18,7 +18,8 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.debuneko.mobileappui"
     },
     "android": {
       "adaptiveIcon": {
@@ -31,6 +32,11 @@
     },
     "plugins": [
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b500217d-55b7-45d9-acd6-2799b18fa721"
+      }
+    }
   }
 }

@@ -1,43 +1,84 @@
 import * as React from "react";
-import { StyleSheet, Text, View, Pressable } from "react-native";
-import HamburgerMenu from "../assets/Hamburger-Menu.svg";
-import { StyleVariable, FontSize, FontFamily, Color } from "../GlobalStyles";
+import {
+  Pressable,
+  PressableProps,
+  StyleProp,
+  StyleSheet,
+  Text,
+  TextStyle,
+  ViewStyle,
+} from "react-native";
+import type { SvgProps } from "react-native-svg";
 
-const IconButton = () => {
-  return (
-    <Pressable style={styles.root}>
-      <HamburgerMenu
-        style={styles.hamburgerMenuIcon}
-        width={NaN}
-        height={NaN}
-      />
-      <Text style={styles.text}>履歴</Text>
-    </Pressable>
-  );
-};
+import { StyleVariable, FontSize, FontFamily, Color } from "../GlobalStyles";
+import HamburgerMenu from "../assets/Hamburger-Menu.svg";
+
+type IconComponent = React.ComponentType<SvgProps>;
+
+export type IconButtonProps = {
+  label?: string;
+  Icon?: IconComponent;
+  containerStyle?: StyleProp<ViewStyle>;
+  labelStyle?: StyleProp<TextStyle>;
+} & Omit<PressableProps, "style">;
+
+const IconButton = React.forwardRef<React.ElementRef<typeof Pressable>, IconButtonProps>(
+  (
+    {
+      label,
+      Icon = HamburgerMenu,
+      containerStyle,
+      labelStyle,
+      accessibilityRole = "button",
+      accessibilityLabel,
+      ...pressableProps
+    },
+    ref,
+  ) => {
+    const resolvedAccessibilityLabel = accessibilityLabel ?? label ?? "icon";
+
+    return (
+      <Pressable
+        ref={ref}
+        accessibilityRole={accessibilityRole}
+        accessibilityLabel={resolvedAccessibilityLabel}
+        style={({ pressed }) => [styles.root, pressed && styles.pressed, containerStyle]}
+        {...pressableProps}
+      >
+        <Icon
+          width={StyleVariable.iconSizeLg}
+          height={StyleVariable.iconSizeLg}
+          style={styles.icon}
+        />
+        {label ? <Text style={[styles.text, labelStyle]}>{label}</Text> : null}
+      </Pressable>
+    );
+  },
+);
+
+IconButton.displayName = "IconButton";
 
 const styles = StyleSheet.create({
   root: {
-    flex: 1,
-    overflow: "hidden",
     alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: StyleVariable.spaceXs,
+    paddingHorizontal: StyleVariable.spaceSm,
+    gap: StyleVariable.space4,
   },
-  hamburgerMenuIcon: {
-    width: StyleVariable.iconSizeLg,
-    height: StyleVariable.iconSizeLg,
+  pressed: {
+    opacity: 0.6,
+  },
+  icon: {
+    alignSelf: "center",
   },
   text: {
-    width: 31,
-    height: 22,
     fontSize: FontSize.size_14,
     lineHeight: 22,
     fontFamily: FontFamily.notoSansJPRegular,
     color: Color.colorBrandPrimary,
     textAlign: "center",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
   },
 });
 
-export default IconButton;
+export default React.memo(IconButton);

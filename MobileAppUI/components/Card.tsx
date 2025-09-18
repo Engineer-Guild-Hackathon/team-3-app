@@ -1,46 +1,40 @@
 import * as React from "react";
-import { Text, StyleSheet, View } from "react-native";
-import List1 from "./List1";
+import { StyleSheet, Text, View } from "react-native";
+
 import { Color, StyleVariable, FontSize, FontFamily } from "../GlobalStyles";
 
-export type CardType = {
-  /** Variant props */
-  bgStyle?: string;
-  hasTitle?: boolean;
+export type CardProps = {
+  title?: string;
+  children?: React.ReactNode;
 };
 
-const Card = ({ bgStyle = "transparent", hasTitle = true }: CardType) => {
+const Card = ({ title, children }: CardProps) => {
   return (
-    <View style={[styles.card, styles.cardFlexBox]}>
-      <Text style={styles.text}>履歴</Text>
-      <View style={styles.cardFlexBox}>
-        <List1 bgStyle="glass" hasTitle />
-      </View>
+    <View style={styles.container}>
+      {title ? <Text style={styles.title}>{title}</Text> : null}
+      {children ? <View style={styles.body}>{children}</View> : null}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  cardFlexBox: {
-    alignItems: "center",
-    overflow: "hidden",
-    flex: 1,
-    alignSelf: "stretch",
-  },
-  card: {
+  container: {
     backgroundColor: Color.colorGray100,
     padding: StyleVariable.spaceSm,
     gap: StyleVariable.spaceSm,
+    borderRadius: StyleVariable.radiusMd,
   },
-  text: {
+  title: {
     fontSize: FontSize.size_24,
     lineHeight: 30,
     fontWeight: "800",
     fontFamily: FontFamily.roundedMplus1c,
     color: Color.colorBlack,
-    textAlign: "center",
-    alignSelf: "stretch",
+    textAlign: "left",
+  },
+  body: {
+    gap: StyleVariable.spaceSm,
   },
 });
 
-export default Card;
+export default React.memo(Card);

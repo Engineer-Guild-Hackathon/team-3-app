@@ -14,6 +14,7 @@
     "@types/react": "~19.1.10",
     "expo": "^54.0.8",
     "expo-constants": "~18.0.9",
+    "expo-dev-client": "~6.0.12",
     "expo-font": "~14.0.8",
     "expo-image": "~3.0.8",
     "expo-status-bar": "~3.0.8",
@@ -37,8 +38,8 @@
   "name": "mobileappui",
   "private": true,
   "scripts": {
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "prestart": "node scripts/validate-svgs.js",
     "start": "expo start",
     "web": "expo start --web"

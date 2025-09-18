@@ -1,29 +1,38 @@
 import * as React from "react";
-import { StyleSheet, View, ImageBackground } from "react-native";
-import Header from "./Header";
-import ChatMainArea from "./ChatMainArea";
-import Drawer1 from "./Drawer1";
+import { ImageBackground, StyleSheet, View } from "react-native";
+
 import { StyleVariable, Color } from "../GlobalStyles";
+import ChatMainArea from "./ChatMainArea";
+import Header from "./Header";
+import HistoryDrawer from "./HistoryDrawer";
+import type { ChatHistoryEntry, ChatMessage } from "./types";
 
-export type PageShellIconType = {
-  /** Variant props */
-  drawerOpen?: boolean;
-};
+const SAMPLE_HISTORY: ChatHistoryEntry[] = [
+  { id: "1", title: "最近の質問", snippet: "プロジェクト状況を整理", timestamp: "12:30", unread: true },
+  { id: "2", title: "AI 相談", snippet: "課題の洗い出し", timestamp: "12:08" },
+  { id: "3", title: "資料レビュー", snippet: "構成の確認", timestamp: "昨日" },
+];
 
-const PageShellIcon = ({ drawerOpen = false }: PageShellIconType) => {
+const SAMPLE_MESSAGES: ChatMessage[] = [
+  { id: "m1", author: "assistant", text: "本日のゴールを教えてください。", createdAt: "12:00" },
+  { id: "m2", author: "user", text: "最新のレポートをまとめたいです。", createdAt: "12:01" },
+  { id: "m3", author: "assistant", text: "了解しました。必要なデータは揃っていますか？", createdAt: "12:02" },
+];
+
+const PageShellIcon = () => {
   return (
     <ImageBackground
-      style={[styles.layoutpageshellIcon, styles.mainareaFlexBox]}
+      style={styles.shell}
       resizeMode="cover"
       source={require("../assets/Layout-PageShell.png")}
     >
-      <Header drawerOpen={false} />
-      <View style={[styles.mainarea, styles.mainareaFlexBox]}>
-        <View style={[styles.contentarea, styles.mainareaFlexBox]}>
-          <ChatMainArea drawerOpen={false} chatBubbleTheme1="Dark" />
+      <Header />
+      <View style={styles.body}>
+        <View style={styles.chatArea}>
+          <ChatMainArea messages={SAMPLE_MESSAGES} />
         </View>
-        <View style={styles.drawerlayer}>
-          <Drawer1 drawerOpen={false} />
+        <View style={styles.drawerArea}>
+          <HistoryDrawer entries={SAMPLE_HISTORY} activeId="1" />
         </View>
       </View>
     </ImageBackground>
@@ -31,34 +40,26 @@ const PageShellIcon = ({ drawerOpen = false }: PageShellIconType) => {
 };
 
 const styles = StyleSheet.create({
-  mainareaFlexBox: {
+  shell: {
     flex: 1,
-    alignSelf: "stretch",
-  },
-  layoutpageshellIcon: {
-    alignItems: "center",
+    width: "100%",
     padding: StyleVariable.spaceLg,
     gap: StyleVariable.spaceMd,
   },
-  mainarea: {
-    overflow: "hidden",
-  },
-  contentarea: {
+  body: {
+    flex: 1,
     flexDirection: "row",
-    justifyContent: "center",
-    zIndex: 0,
+    gap: StyleVariable.spaceLg,
+  },
+  chatArea: {
+    flex: 1,
+    backgroundColor: Color.colorWhite,
+    borderRadius: StyleVariable.radiusLg,
     overflow: "hidden",
   },
-  drawerlayer: {
+  drawerArea: {
     width: 320,
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: -320,
-    backgroundColor: Color.colorSurfaceGlass,
-    zIndex: 1,
-    overflow: "hidden",
   },
 });
 
-export default PageShellIcon;
+export default React.memo(PageShellIcon);

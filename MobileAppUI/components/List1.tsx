@@ -1,173 +1,49 @@
-import React, { useState } from "react";
-import { ScrollView, StyleSheet } from "react-native";
-import Item from "./Item";
+import * as React from "react";
+import { StyleSheet, View } from "react-native";
 
-export type List1Type = {
-  /** Variant props */
-  bgStyle?: string;
-  hasTitle?: boolean;
+import Item from "./Item";
+import type { ChatHistoryEntry } from "./types";
+
+export type List1Props = {
+  entries: ChatHistoryEntry[];
+  activeId?: string;
+  onSelect?: (entry: ChatHistoryEntry) => void;
 };
 
-const List1 = ({ bgStyle = "transparent", hasTitle = true }: List1Type) => {
-  const [itemItems] = useState([
-    {
-      selected: false,
-      size: "default",
-      showUnreadDotIcon: true,
-      timeWidth: "",
-      timeHeight: "",
-      timeDisplay: "",
-      timeAlignItems: "",
-      timeJustifyContent: "",
-    },
-    {
-      selected: false,
-      size: "default",
-      showUnreadDotIcon: true,
-      timeWidth: "",
-      timeHeight: "",
-      timeDisplay: "",
-      timeAlignItems: "",
-      timeJustifyContent: "",
-    },
-    {
-      selected: false,
-      size: "default",
-      showUnreadDotIcon: true,
-      timeWidth: "",
-      timeHeight: "",
-      timeDisplay: "",
-      timeAlignItems: "",
-      timeJustifyContent: "",
-    },
-    {
-      selected: false,
-      size: "default",
-      showUnreadDotIcon: false,
-      timeWidth: "",
-      timeHeight: "",
-      timeDisplay: "",
-      timeAlignItems: "",
-      timeJustifyContent: "",
-    },
-    {
-      selected: false,
-      size: "default",
-      showUnreadDotIcon: false,
-      timeWidth: "",
-      timeHeight: "",
-      timeDisplay: "",
-      timeAlignItems: "",
-      timeJustifyContent: "",
-    },
-    {
-      selected: false,
-      size: "default",
-      showUnreadDotIcon: false,
-      timeWidth: "",
-      timeHeight: "",
-      timeDisplay: "",
-      timeAlignItems: "",
-      timeJustifyContent: "",
-    },
-    {
-      selected: false,
-      size: "default",
-      showUnreadDotIcon: false,
-      timeWidth: "",
-      timeHeight: "",
-      timeDisplay: "",
-      timeAlignItems: "",
-      timeJustifyContent: "",
-    },
-    {
-      selected: false,
-      size: "default",
-      showUnreadDotIcon: false,
-      timeWidth: "",
-      timeHeight: "",
-      timeDisplay: "",
-      timeAlignItems: "",
-      timeJustifyContent: "",
-    },
-    {
-      selected: false,
-      size: "default",
-      showUnreadDotIcon: false,
-      timeWidth: "",
-      timeHeight: "",
-      timeDisplay: "",
-      timeAlignItems: "",
-      timeJustifyContent: "",
-    },
-    {
-      selected: false,
-      size: "default",
-      showUnreadDotIcon: false,
-      timeWidth: "",
-      timeHeight: "",
-      timeDisplay: "",
-      timeAlignItems: "",
-      timeJustifyContent: "",
-    },
-    {
-      selected: false,
-      size: "default",
-      showUnreadDotIcon: false,
-      timeWidth: "",
-      timeHeight: "",
-      timeDisplay: "",
-      timeAlignItems: "",
-      timeJustifyContent: "",
-    },
-    {
-      selected: false,
-      size: "default",
-      showUnreadDotIcon: false,
-      timeWidth: "",
-      timeHeight: "",
-      timeDisplay: "",
-      timeAlignItems: "",
-      timeJustifyContent: "",
-    },
-  ]);
+const FALLBACK_ENTRIES: ChatHistoryEntry[] = [
+  { id: "1", title: "最近の質問", snippet: "チャットの流れを教えて" , timestamp: "12:30", unread: true },
+  { id: "2", title: "AI 相談", snippet: "分析レポートをまとめて" , timestamp: "12:08" },
+  { id: "3", title: "設計レビュー", snippet: "画面遷移について" , timestamp: "昨日" },
+];
+
+const List1 = ({ entries, activeId, onSelect }: List1Props) => {
+  const data = entries.length > 0 ? entries : FALLBACK_ENTRIES;
 
   return (
-    <ScrollView
-      style={styles.historylist}
-      contentContainerStyle={styles.listContainerContent}
-    >
-      {itemItems.map((item, index) => (
-        <Item
-          key={index}
-          selected={item.selected}
-          size={item.size}
-          showUnreadDotIcon={item.showUnreadDotIcon}
-          timeWidth={item.timeWidth}
-          timeHeight={item.timeHeight}
-          timeDisplay={item.timeDisplay}
-          timeAlignItems={item.timeAlignItems}
-          timeJustifyContent={item.timeJustifyContent}
-        />
+    <View style={styles.contentContainer}>
+      {data.map((item, index) => (
+        <React.Fragment key={item.id}>
+          <Item
+            {...item}
+            isActive={item.id === activeId}
+            onPress={() => onSelect?.(item)}
+          />
+          {index < data.length - 1 ? <View style={styles.separator} /> : null}
+        </React.Fragment>
       ))}
-    </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  listContainerContent: {
-    flexDirection: "column",
+  contentContainer: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    alignItems: "center",
-    justifyContent: "flex-start",
     gap: 8,
   },
-  historylist: {
-    alignSelf: "stretch",
-    flex: 1,
-    maxWidth: "100%",
+  separator: {
+    height: 8,
   },
 });
 
-export default List1;
+export default React.memo(List1);
