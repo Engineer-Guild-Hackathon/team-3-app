@@ -38,11 +38,14 @@ WORKDIR /app
 COPY --from=builder /app/apps/web/.next/standalone ./apps/web
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/package-lock.json ./package-lock.json
+COPY --from=builder /app/node_modules ./node_modules
 # プロンプトテンプレートはアプリ配下に配置
 COPY --from=builder /app/apps/web/prompts ./apps/web/prompts
 # Drizzle のマイグレーション実行に必要なファイル郡（SQL と実行スクリプト）を同梱
-COPY --from=builder /app/drizzle ./drizzle
-COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/drizzle ./apps/web/drizzle
+COPY --from=builder /app/scripts ./apps/web/scripts
 WORKDIR /app/apps/web
 EXPOSE 3000
-CMD ["node","server.js"]
+CMD ["sh","-c","node ./scripts/migrate.mjs && node server.js"]
