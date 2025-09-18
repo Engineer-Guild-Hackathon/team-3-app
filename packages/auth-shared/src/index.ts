@@ -10,5 +10,18 @@ export type {
 } from './getAuthUser';
 
 export { getAuthUser, UnauthorizedError } from './getAuthUser';
-export type { VerifyAppJwtOptions, VerifiedAppJwt, TokenType } from './token';
-export { verifyAppJwt } from './token';
+export type {
+  VerifyAppJwtOptions,
+  VerifiedAppJwt,
+  TokenType,
+  SignAppJwtOptions,
+  IssueAppTokensOptions,
+  IssuedAppTokens,
+} from './token';
+export {
+  verifyAppJwt,
+  signAppJwt,
+  issueAppTokens,
+  createRefreshTokenValue,
+  hashRefreshToken,
+} from './token';

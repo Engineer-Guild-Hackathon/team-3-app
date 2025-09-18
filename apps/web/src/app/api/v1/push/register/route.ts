@@ -1,6 +1,10 @@
 import { authorize } from '../../_lib/auth';
 import { createCorsContext, buildPreflightResponse, rejectIfDisallowed } from '../../_lib/cors';
 import { errorResponse, noContent } from '../../_lib/responses';
+import { db } from '@/db/client';
+import { devices, pushTokens } from '@/db/schema';
+import { and, eq, ne, sql } from 'drizzle-orm';
+import { getLogger } from '@/lib/logger';
 
 const SUPPORTED_PLATFORMS = new Set(['ios', 'android']);
 
@@ -16,6 +20,10 @@ export async function POST(request: Request) {
   const result = await authorize(request, cors, { requiredScope: 'push:register', allowCookieFallback: false });
   if (result.type === 'error') {
     return result.response;
+  }
+
+  if (!db) {
+    return errorResponse('service_unavailable', 'Database is not available.', { status: 503, cors });
   }
 
   let payload: any;
@@ -37,7 +45,64 @@ export async function POST(request: Request) {
     return errorResponse('invalid_request', 'platform must be ios or android.', { status: 422, cors });
   }
 
-  // TODO: DB 永続化（drizzle で push_tokens / devices を更新）
+  const model = typeof payload?.model === 'string' ? payload.model.trim() : null;
+  const osVersion = typeof payload?.osVersion === 'string' ? payload.osVersion.trim() : null;
+
+  const log = getLogger('api:v1:push:register');
+
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(devices)
+      .values({
+        id: deviceId,
+        userId: result.user.userId,
+        model,
+        osVersion,
+        lastSeenAt: sql`now()`,
+        updatedAt: sql`now()`,
+      })
+      .onConflictDoUpdate({
+        target: devices.id,
+        set: {
+          userId: result.user.userId,
+          model,
+          osVersion,
+          lastSeenAt: sql`now()`,
+          updatedAt: sql`now()`,
+        },
+      });
+
+    await tx
+      .delete(pushTokens)
+      .where(
+        and(
+          eq(pushTokens.userId, result.user.userId),
+          eq(pushTokens.deviceId, deviceId),
+          ne(pushTokens.token, token)
+        )
+      );
+
+    await tx
+      .insert(pushTokens)
+      .values({
+        userId: result.user.userId,
+        token,
+        platform,
+        deviceId,
+        createdAt: sql`now()`,
+        updatedAt: sql`now()`,
+      })
+      .onConflictDoUpdate({
+        target: pushTokens.token,
+        set: {
+          platform,
+          deviceId,
+          updatedAt: sql`now()`,
+        },
+      });
+  });
+
+  log.info({ msg: 'registered', userId: result.user.userId, deviceId, platform });
 
   return noContent({ cors });
 }

@@ -2,7 +2,37 @@
 // - HMAC-SHA256 署名を想定
 // - 開発用の簡易 dev トークンも許容
 
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual, createHash } from 'node:crypto';
+
+export type SignAppJwtOptions = {
+  secret: string;
+  subject: string;
+  scopes: string[];
+  tokenType: TokenType;
+  issuer?: string;
+  audience?: string;
+  deviceId?: string;
+  expiresInSeconds: number;
+  issuedAt?: number;
+};
+
+export type IssueAppTokensOptions = {
+  secret: string;
+  issuer?: string;
+  audience?: string;
+  userId: string;
+  deviceId: string;
+  scopes: string[];
+  accessTokenTtlSeconds: number;
+  refreshTokenTtlSeconds: number;
+};
+
+export type IssuedAppTokens = {
+  accessToken: string;
+  accessTokenExpiresAt: Date;
+  refreshToken: string;
+  refreshTokenExpiresAt: Date;
+};
 
 export type TokenType = 'access' | 'refresh' | 'unknown';
 
@@ -25,6 +55,70 @@ export type VerifiedAppJwt = {
 };
 
 const DEV_TOKEN_PREFIX_DEFAULT = 'dev:';
+
+function base64UrlEncode(buffer: Buffer) {
+  return buffer
+    .toString('base64')
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+}
+
+/**
+ * AppJWT を生成する。
+ */
+export function signAppJwt(options: SignAppJwtOptions): string {
+  const issuedAt = options.issuedAt ?? Math.floor(Date.now() / 1000);
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const payload: Record<string, unknown> = {
+    sub: options.subject,
+    scope: options.scopes.join(' '),
+    iat: issuedAt,
+    exp: issuedAt + options.expiresInSeconds,
+    token_type: options.tokenType,
+  };
+  if (options.issuer) payload.iss = options.issuer;
+  if (options.audience) payload.aud = options.audience;
+  if (options.deviceId) payload.device_id = options.deviceId;
+
+  const headerSegment = base64UrlEncode(Buffer.from(JSON.stringify(header)));
+  const payloadSegment = base64UrlEncode(Buffer.from(JSON.stringify(payload)));
+  const signingInput = `${headerSegment}.${payloadSegment}`;
+  const signature = createHmac('sha256', options.secret).update(signingInput).digest('base64url');
+  return `${signingInput}.${signature}`;
+}
+
+export function createRefreshTokenValue(length = 48): string {
+  return randomBytes(length).toString('base64url');
+}
+
+export function hashRefreshToken(token: string): string {
+  return createHash('sha256').update(token).digest('base64');
+}
+
+export function issueAppTokens(options: IssueAppTokensOptions): IssuedAppTokens {
+  const now = Math.floor(Date.now() / 1000);
+  const accessToken = signAppJwt({
+    secret: options.secret,
+    subject: options.userId,
+    scopes: options.scopes,
+    tokenType: 'access',
+    issuer: options.issuer,
+    audience: options.audience,
+    deviceId: options.deviceId,
+    expiresInSeconds: options.accessTokenTtlSeconds,
+    issuedAt: now,
+  });
+  const refreshToken = createRefreshTokenValue();
+  const refreshTokenExpiresAt = new Date(Date.now() + options.refreshTokenTtlSeconds * 1000);
+  const accessTokenExpiresAt = new Date(Date.now() + options.accessTokenTtlSeconds * 1000);
+  return {
+    accessToken,
+    accessTokenExpiresAt,
+    refreshToken,
+    refreshTokenExpiresAt,
+  };
+}
 
 /**
  * AppJWT を検証し、利用可能なクレームを返す。

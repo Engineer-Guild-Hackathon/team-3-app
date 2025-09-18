@@ -1,7 +1,7 @@
 // Drizzle ORM 用のテーブル定義集約
 // - Web/BFF/ジョブで共用するテーブルをここで定義する
 
-import { boolean, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, index, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 // users
@@ -133,4 +133,20 @@ export const iapReceipts = pgTable('iap_receipts', {
 }, (t) => ({
   platformCk: sql`CHECK (${t.platform.name} IN ('ios','android'))`,
   statusCk: sql`CHECK (${t.status.name} IN ('trial','active','grace','paused','canceled','expired'))`,
+}));
+
+// refresh_tokens
+export const refreshTokens = pgTable('refresh_tokens', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  deviceId: text('device_id').notNull(),
+  tokenHash: text('token_hash').notNull().unique(),
+  metadata: jsonb('metadata'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  rotatedAt: timestamp('rotated_at', { withTimezone: true }),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+}, (t) => ({
+  userDeviceIdx: index('refresh_tokens_user_device_idx').on(t.userId, t.deviceId),
 }));

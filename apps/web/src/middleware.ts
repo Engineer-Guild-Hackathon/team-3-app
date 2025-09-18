@@ -25,6 +25,11 @@ export default withAuth({
         }
       }
 
+      const isApiV1Auth = pathname.startsWith('/api/v1/auth/');
+      if (isApiV1Auth) {
+        return true;
+      }
+
       const isApiV1 = pathname.startsWith('/api/v1/');
       if (isApiV1) {
         const authHeader = req.headers.get('authorization');
