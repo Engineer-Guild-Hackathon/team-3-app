@@ -22,7 +22,12 @@ export async function POST(request: Request) {
     return result.response;
   }
 
+  const isDevToken = Boolean((result.user.rawToken as any)?.dev);
+
   if (!db) {
+    if (isDevToken) {
+      return noContent({ cors });
+    }
     return errorResponse('service_unavailable', 'Database is not available.', { status: 503, cors });
   }
 
@@ -49,6 +54,11 @@ export async function POST(request: Request) {
   const osVersion = typeof payload?.osVersion === 'string' ? payload.osVersion.trim() : null;
 
   const log = getLogger('api:v1:push:register');
+
+  if (isDevToken) {
+    log.info({ msg: 'registered(dev_mode)', deviceId, platform });
+    return noContent({ cors });
+  }
 
   await db.transaction(async (tx) => {
     await tx

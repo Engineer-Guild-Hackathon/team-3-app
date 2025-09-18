@@ -123,6 +123,13 @@ tasks:
       - echo "Check mobile tables" && docker compose -f docker-compose.dev.yml exec db psql -U dev -d team3app_dev -c '\d push_tokens' || true
       - docker compose -f docker-compose.dev.yml exec db psql -U dev -d team3app_dev -c '\d devices' || true
       - docker compose -f docker-compose.dev.yml exec db psql -U dev -d team3app_dev -c '\d iap_receipts' || true
+      - docker compose -f docker-compose.dev.yml exec db psql -U dev -d team3app_dev -c '\d refresh_tokens' || true
+
+  test:
+    desc: Run vitest suite
+    cmds:
+      - echo "Running vitest..."
+      - npm test --silent
 
   # --- Build only (Staging/Production) -------------------------------------
   build:stg:
@@ -266,4 +273,5 @@ tasks:
     desc: Run local CI for app and DB
     cmds:
       - task ci:local
+      - task test
       - task ci:db

@@ -149,6 +149,16 @@ task db:check     # pgcrypto / tables / views / env
 
 Note: 初回は `task db:up` の後に `task db:migrate` を実行してください。
 
+### テスト
+
+Vitest を利用したテストスイートが用意されています。
+
+```bash
+npm run test      # 共有ユーティリティと /api/v1/auth/* の動作検証
+```
+
+Taskfile の `task test` でも同じコマンドを実行できます。CI (`task ci:all`) では lint/typecheck/build に加えてこのテストが自動で走ります。
+
 ### API（チャット基盤 / フェーズA）
 
 - `POST /api/chat` — LLM実行 + 永続化（要認証）
