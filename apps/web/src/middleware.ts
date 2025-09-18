@@ -17,6 +17,25 @@ export default withAuth({
         pathname === "/favicon.ico" ||
         pathname.includes("."); // 例: /SPAR_logo.png, /robots.txt など
       if (isPublic) return true;
+
+      if (pathname.startsWith('/api/v1/')) {
+        const authHeader = req.headers.get('authorization')?.toLowerCase() ?? '';
+        if (authHeader.startsWith('bearer ')) {
+          return true;
+        }
+      }
+
+      const isApiV1Auth = pathname.startsWith('/api/v1/auth/');
+      if (isApiV1Auth) {
+        return true;
+      }
+
+      const isApiV1 = pathname.startsWith('/api/v1/');
+      if (isApiV1) {
+        const authHeader = req.headers.get('authorization');
+        if (authHeader?.toLowerCase().startsWith('bearer ')) return true;
+      }
+
       return !!token;
     },
   },

@@ -3,7 +3,13 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@team3/api-client": ["../../packages/api-client/src/index.ts"],
+      "@team3/api-client/*": ["../../packages/api-client/src/*"],
+      "@team3/auth-shared": ["../../packages/auth-shared/src/index.ts"],
+      "@team3/auth-shared/*": ["../../packages/auth-shared/src/*"],
+      "@team3/db": ["../../packages/db/src/schema/index.ts"],
+      "@team3/db/*": ["../../packages/db/src/schema/*"]
     },
     "plugins": [
       {
