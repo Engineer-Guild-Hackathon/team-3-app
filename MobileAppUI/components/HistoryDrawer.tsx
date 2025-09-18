@@ -22,7 +22,14 @@ const HistoryDrawer = ({
   return (
     <View style={styles.container}>
       <NewChatButton onPress={onCreatePress} />
-      <HistoryCard entries={entries} activeId={activeId} onSelect={onSelect} />
+      <View style={styles.historyArea}>
+        <HistoryCard
+          entries={entries}
+          activeId={activeId}
+          onSelect={onSelect}
+          heightMode="flex"
+        />
+      </View>
     </View>
   );
 };
@@ -32,9 +39,12 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
     flex: 1,
     borderRadius: StyleVariable.radiusMd,
-    backgroundColor: Color.colorCornflowerblue100,
+    backgroundColor: Color.colorHistoryDrawerBackground,
     padding: StyleVariable.spaceLg,
     gap: StyleVariable.spaceMd,
+  },
+  historyArea: {
+    flex: 1,
   },
 });
 

@@ -5,7 +5,7 @@ import PageShell from "../components/PageShell";
 import { homeHeaderConfig } from "../components/headerConfigs";
 import HistoryDrawer from "../components/HistoryDrawer";
 import HomeMainArea from "../components/HomeMainArea";
-import { Color, StyleVariable } from "../GlobalStyles";
+import { StyleVariable } from "../GlobalStyles";
 import type { ChatHistoryEntry } from "../components/types";
 
 const SAMPLE_HISTORY: ChatHistoryEntry[] = [
@@ -13,11 +13,23 @@ const SAMPLE_HISTORY: ChatHistoryEntry[] = [
   { id: "2", title: "AI 相談", snippet: "分析レポートをまとめて", timestamp: "12:08" },
   { id: "3", title: "設計レビュー", snippet: "画面遷移について", timestamp: "昨日" },
   { id: "4", title: "議事録生成", snippet: "結論を要約", timestamp: "2日前" },
+  { id: "5", title: "プロジェクト計画", snippet: "次のステップは？", timestamp: "3日前" },
+  { id: "6", title: "技術サポート", snippet: "エラーメッセージの意味", timestamp: "4日前" },
+  { id: "7", title: "マーケティング戦略", snippet: "ターゲット市場の分析", timestamp: "5日前" },
+  { id: "8", title: "製品フィードバック", snippet: "改善点を提案", timestamp: "6日前" },
+  { id: "9", title: "競合分析", snippet: "主要な競合他社は？", timestamp: "1週間前" },
+  { id: "10", title: "ユーザーインタビュー", snippet: "インサイトを共有", timestamp: "1週間前" },
 ];
 
 const Home = () => {
   return (
-    <PageShell headerConfig={homeHeaderConfig} rightActionVariant="settings" contentStyle={styles.shellContent}>
+    <PageShell
+      headerConfig={homeHeaderConfig}
+      rightActionVariant="settings"
+      contentStyle={styles.shellContent}
+      drawer={<HistoryDrawer entries={SAMPLE_HISTORY} activeId="1" />}
+      drawerWidth={320}
+    >
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.homeScrollViewContent}
@@ -25,9 +37,6 @@ const Home = () => {
         <View style={[styles.mainarea, styles.mainareaFlexBox]}>
           <View style={[styles.contentarea, styles.mainareaFlexBox]}>
             <HomeMainArea historyEntries={SAMPLE_HISTORY} activeHistoryId="1" />
-          </View>
-          <View style={styles.drawerlayer}>
-            <HistoryDrawer entries={SAMPLE_HISTORY} activeId="1" />
           </View>
         </View>
       </ScrollView>
@@ -61,16 +70,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     zIndex: 0,
-    overflow: "hidden",
-  },
-  drawerlayer: {
-    width: 320,
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: -320,
-    backgroundColor: Color.colorSurfaceGlass,
-    zIndex: 1,
     overflow: "hidden",
   },
 });

@@ -31,6 +31,8 @@ const HomeMainArea = ({
         entries={historyEntries}
         activeId={activeHistoryId}
         onSelect={onSelectHistory}
+        heightMode="fixed"
+        height={300}
       />
       <Card title="Stats">
         <View style={styles.statsPlaceholder} />

@@ -14,21 +14,21 @@ export const FontSize = {
 /* Colors */
 export const Color = {
   colorDimgray: "#64636a",
-  colorCornflowerblue200: "#6b93ed",
-  colorCornflowerblue100: "#93b3ff",
+  colorHistoryDrawerBackground: "#b1c6f9ff",
   colorBlack: "#000",
   colorGray200: "rgba(0, 0, 0, 0.06)",
   colorGray100: "rgba(0, 0, 0, 0)",
   colorWhite: "#fff",
   highlightLightest: "#eaf2ff",
   colorRoleAssistant: "#d5d5d5",
-  colorBrandSecondary: "#6a93ed",
   colorSurfaceGlass: "rgba(255, 255, 255, 0.8)",
   colorTextSecondary: "#475569",
   colorTextPrimary: "#0f172a",
   colorInfoNew: "#22c55e",
   colorChatDefault: "#aec1ff",
+  colorChatTapped: "#dbe4ff",
   colorBrandPrimary: "#2563eb",
+  colorBrandSecondary: "#6a93ed",
 };
 /* Style Variables */
 export const StyleVariable = {

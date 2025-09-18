@@ -1,10 +1,10 @@
 import * as React from "react";
-import { StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 
-import Item from "./Item";
+import HistoryItem from "./HistoryItem";
 import type { ChatHistoryEntry } from "./types";
 
-export type List1Props = {
+export type HistoryListProps = {
   entries: ChatHistoryEntry[];
   activeId?: string;
   onSelect?: (entry: ChatHistoryEntry) => void;
@@ -16,14 +16,18 @@ const FALLBACK_ENTRIES: ChatHistoryEntry[] = [
   { id: "3", title: "設計レビュー", snippet: "画面遷移について" , timestamp: "昨日" },
 ];
 
-const List1 = ({ entries, activeId, onSelect }: List1Props) => {
+const HistoryList = ({ entries, activeId, onSelect }: HistoryListProps) => {
   const data = entries.length > 0 ? entries : FALLBACK_ENTRIES;
 
   return (
-    <View style={styles.contentContainer}>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}
+    >
       {data.map((item, index) => (
         <React.Fragment key={item.id}>
-          <Item
+          <HistoryItem
             {...item}
             isActive={item.id === activeId}
             onPress={() => onSelect?.(item)}
@@ -31,11 +35,14 @@ const List1 = ({ entries, activeId, onSelect }: List1Props) => {
           {index < data.length - 1 ? <View style={styles.separator} /> : null}
         </React.Fragment>
       ))}
-    </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
+  scroll: {
+    alignSelf: "stretch",
+  },
   contentContainer: {
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -46,4 +53,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default React.memo(List1);
+export default React.memo(HistoryList);

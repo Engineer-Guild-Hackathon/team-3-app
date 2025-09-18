@@ -22,7 +22,7 @@ const styles = StyleSheet.create({
   container: {
     alignSelf: "stretch",
     borderRadius: StyleVariable.radiusMd,
-    backgroundColor: Color.colorCornflowerblue200,
+    backgroundColor: Color.colorBrandSecondary,
     overflow: "hidden",
     flexDirection: "row",
     alignItems: "center",

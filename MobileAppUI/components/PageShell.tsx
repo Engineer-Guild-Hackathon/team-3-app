@@ -1,5 +1,13 @@
 import * as React from "react";
-import { ImageBackground, StyleProp, StyleSheet, View, ViewStyle } from "react-native";
+import {
+  Animated,
+  GestureResponderEvent,
+  ImageBackground,
+  StyleProp,
+  StyleSheet,
+  View,
+  ViewStyle,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import Header from "./Header";
@@ -17,6 +25,9 @@ export type PageShellProps = {
   backgroundStyle?: StyleProp<ViewStyle>;
   contentStyle?: StyleProp<ViewStyle>;
   rightActionVariant?: PageShellRightAction;
+  drawer?: React.ReactNode;
+  drawerWidth?: number;
+  drawerTransitionDuration?: number;
 };
 
 const resolveButton = (
@@ -91,21 +102,84 @@ const PageShell = ({
   backgroundStyle,
   contentStyle,
   rightActionVariant = "settings",
+  drawer,
+  drawerWidth = 320,
+  drawerTransitionDuration = 220,
 }: PageShellProps) => {
   const resolvedHeaderConfig = React.useMemo(
     () => buildHeaderConfig(headerConfig, rightActionVariant),
     [headerConfig, rightActionVariant],
   );
 
+  const [isDrawerOpen, setIsDrawerOpen] = React.useState(false);
+  const drawerAnim = React.useRef(new Animated.Value(0));
+
+  const toggleDrawer = React.useCallback(() => {
+    setIsDrawerOpen((prev) => !prev);
+  }, []);
+
+  React.useEffect(() => {
+    if (!drawer && isDrawerOpen) {
+      setIsDrawerOpen(false);
+    }
+  }, [drawer, isDrawerOpen]);
+
+  React.useEffect(() => {
+    Animated.timing(drawerAnim.current, {
+      toValue: isDrawerOpen && drawer ? 1 : 0,
+      duration: drawerTransitionDuration,
+      useNativeDriver: true,
+    }).start();
+  }, [drawer, drawerTransitionDuration, isDrawerOpen]);
+
+  const headerWithDrawer = React.useMemo(() => {
+    if (!drawer || !resolvedHeaderConfig.menu) {
+      return resolvedHeaderConfig;
+    }
+
+    const originalOnPress = resolvedHeaderConfig.menu.onPress;
+
+    return {
+      ...resolvedHeaderConfig,
+      menu: {
+        ...resolvedHeaderConfig.menu,
+        onPress: (event: GestureResponderEvent) => {
+          originalOnPress?.(event);
+          toggleDrawer();
+        },
+      },
+    };
+  }, [drawer, resolvedHeaderConfig, toggleDrawer]);
+
+  const drawerTranslateX = drawerAnim.current.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-drawerWidth - StyleVariable.spaceLg, 0],
+  });
+
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-      <Header config={resolvedHeaderConfig} />
+      <Header config={headerWithDrawer} />
       <ImageBackground
         source={require("../assets/PageShellBg.png")}
         style={[styles.background, backgroundStyle]}
         imageStyle={styles.backgroundImage}
       >
-        <View style={[styles.content, contentStyle]}>{children}</View>
+        <View style={styles.contentWrapper}>
+          <View style={[styles.content, contentStyle]}>{children}</View>
+          {drawer ? (
+            <Animated.View
+              style={[
+                styles.drawerContainer,
+                {
+                  width: drawerWidth,
+                  transform: [{ translateX: drawerTranslateX }],
+                },
+              ]}
+            >
+              <View style={styles.drawerInner}>{drawer}</View>
+            </Animated.View>
+          ) : null}
+        </View>
       </ImageBackground>
     </SafeAreaView>
   );
@@ -123,7 +197,22 @@ const styles = StyleSheet.create({
   backgroundImage: {
     resizeMode: "cover",
   },
+  contentWrapper: {
+    flex: 1,
+    position: "relative",
+  },
   content: {
+    flex: 1,
+  },
+  drawerContainer: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    paddingVertical: StyleVariable.spaceLg,
+    paddingRight: StyleVariable.spaceLg,
+  },
+  drawerInner: {
     flex: 1,
   },
 });

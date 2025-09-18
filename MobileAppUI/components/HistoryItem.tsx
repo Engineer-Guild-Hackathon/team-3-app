@@ -13,19 +13,19 @@ import {
 import Avatar from "./Avatar";
 import type { ChatHistoryEntry } from "./types";
 
-export type ItemProps = ChatHistoryEntry & {
+export type HistoryItemProps = ChatHistoryEntry & {
   isActive?: boolean;
   onPress?: () => void;
 };
 
-const Item = ({
+const HistoryItem = ({
   title,
   snippet,
   timestamp,
   unread,
   isActive = false,
   onPress,
-}: ItemProps) => {
+}: HistoryItemProps) => {
   return (
     <Pressable
       onPress={onPress}
@@ -34,7 +34,7 @@ const Item = ({
         isActive && styles.active,
         pressed && styles.pressed,
       ]}
-      android_ripple={{ color: Color.colorCornflowerblue200 }}
+      android_ripple={{ color: Color.colorChatTapped }}
       accessibilityRole="button"
       accessibilityLabel={`${title}${unread ? " 未読" : ""}`}
     >
@@ -74,10 +74,10 @@ const styles = StyleSheet.create({
     gap: StyleVariable.space12,
   },
   active: {
-    backgroundColor: Color.colorCornflowerblue100,
+    backgroundColor: Color.colorChatDefault,
   },
   pressed: {
-    opacity: 0.8,
+    backgroundColor: Color.colorChatTapped,
   },
   leading: {
     flexDirection: "row",
@@ -123,4 +123,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default React.memo(Item);
+export default React.memo(HistoryItem);
