@@ -133,21 +133,56 @@ components:
         deviceId:
           type: string
           description: Device identifier bound to the refresh token.
-    Profile:
+    ProfileSummary:
       type: object
       required:
         - id
-        - name
-        - email
       properties:
         id:
           type: string
           format: uuid
-        name:
-          type: string
         email:
           type: string
           format: email
+          nullable: true
+        displayName:
+          type: string
+          nullable: true
+    AuthContext:
+      type: object
+      required:
+        - scopes
+        - source
+        - tokenType
+      properties:
+        scopes:
+          type: array
+          items:
+            type: string
+        source:
+          type: string
+          enum:
+            - bearer
+            - cookie
+        tokenType:
+          type: string
+          enum:
+            - access
+            - refresh
+            - unknown
+        deviceId:
+          type: string
+          nullable: true
+    MeResponse:
+      type: object
+      required:
+        - profile
+        - auth
+      properties:
+        profile:
+          $ref: '#/components/schemas/ProfileSummary'
+        auth:
+          $ref: '#/components/schemas/AuthContext'
     ChatItem:
       type: object
       required:
@@ -184,6 +219,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ChatItem'
+        nextCursor:
+          type: string
+          nullable: true
     CreateChatRequest:
       type: object
       properties:
@@ -430,7 +468,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Profile'
+                $ref: '#/components/schemas/MeResponse'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '500':

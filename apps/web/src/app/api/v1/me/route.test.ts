@@ -19,6 +19,25 @@ type AuthorizeError = {
 type AuthorizeResult = AuthorizeOk | AuthorizeError;
 
 const authorize = vi.fn<(request: Request, cors: unknown, options?: unknown) => Promise<AuthorizeResult>>();
+const dbRef: { current: any } = { current: undefined };
+
+vi.mock('@/db/client', () => ({
+  get db() {
+    return dbRef.current;
+  },
+}));
+
+vi.mock('@/db/schema', () => ({
+  users: {
+    id: 'users.id',
+    email: 'users.email',
+    displayName: 'users.display_name',
+  },
+}));
+
+vi.mock('drizzle-orm', () => ({
+  eq: (...args: unknown[]) => ({ eq: args }),
+}));
 
 vi.mock('../_lib/auth', () => ({
   authorize,
@@ -27,6 +46,7 @@ vi.mock('../_lib/auth', () => ({
 afterEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
+  dbRef.current = undefined;
 });
 
 describe('GET /api/v1/me', () => {
@@ -42,6 +62,17 @@ describe('GET /api/v1/me', () => {
       },
     });
 
+    const selectMock = vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue([
+            { id: 'user-123', email: 'user@example.com', displayName: 'User' },
+          ]),
+        }),
+      }),
+    });
+    dbRef.current = { select: selectMock };
+
     const { GET } = await import('./route');
     const response = await GET(
       new Request('http://localhost:3000/api/v1/me', {
@@ -55,11 +86,17 @@ describe('GET /api/v1/me', () => {
     expect(response.status).toBe(200);
     const json = await response.json();
     expect(json).toEqual({
-      id: 'user-123',
-      scopes: ['profile:read', 'chat:rw'],
-      authSource: 'bearer',
-      tokenType: 'access',
-      deviceId: 'device-9',
+      profile: {
+        id: 'user-123',
+        email: 'user@example.com',
+        displayName: 'User',
+      },
+      auth: {
+        scopes: ['profile:read', 'chat:rw'],
+        source: 'bearer',
+        tokenType: 'access',
+        deviceId: 'device-9',
+      },
     });
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://mobile.example.com');
   });
@@ -75,5 +112,25 @@ describe('GET /api/v1/me', () => {
     const response = await GET(new Request('http://localhost:3000/api/v1/me'));
 
     expect(response).toBe(errorResponse);
+  });
+
+  it('returns profile with null fields when db is unavailable', async () => {
+    authorize.mockResolvedValue({
+      type: 'ok',
+      user: {
+        userId: 'user-123',
+        scopes: ['profile:read'],
+        source: 'bearer',
+        tokenType: 'access',
+      },
+    });
+    dbRef.current = undefined;
+
+    const { GET } = await import('./route');
+    const response = await GET(new Request('http://localhost:3000/api/v1/me'));
+
+    const json = await response.json();
+    expect(json.profile).toEqual({ id: 'user-123', email: null, displayName: null });
+    expect(json.auth.scopes).toEqual(['profile:read']);
   });
 });

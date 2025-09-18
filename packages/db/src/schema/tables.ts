@@ -48,6 +48,7 @@ export const chats = pgTable('chats', {
   status: text('status').notNull().default('in_progress'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 }, (t) => ({
   statusCk: sql`CHECK (${t.status.name} IN ('in_progress','ended'))`,
 }));
