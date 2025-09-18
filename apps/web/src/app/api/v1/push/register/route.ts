@@ -7,6 +7,7 @@ import { and, eq, ne, sql } from 'drizzle-orm';
 import { getLogger } from '@/lib/logger';
 
 const SUPPORTED_PLATFORMS = new Set(['ios', 'android']);
+const log = getLogger('api:v1:push:register');
 
 export function OPTIONS(request: Request) {
   return buildPreflightResponse(request);
@@ -20,15 +21,6 @@ export async function POST(request: Request) {
   const result = await authorize(request, cors, { requiredScope: 'push:register', allowCookieFallback: false });
   if (result.type === 'error') {
     return result.response;
-  }
-
-  const isDevToken = Boolean((result.user.rawToken as any)?.dev);
-
-  if (!db) {
-    if (isDevToken) {
-      return noContent({ cors });
-    }
-    return errorResponse('service_unavailable', 'Database is not available.', { status: 503, cors });
   }
 
   let payload: any;
@@ -50,10 +42,18 @@ export async function POST(request: Request) {
     return errorResponse('invalid_request', 'platform must be ios or android.', { status: 422, cors });
   }
 
+  const isDevToken = Boolean((result.user.rawToken as any)?.dev);
+
+  if (!db) {
+    if (isDevToken) {
+      log.info({ msg: 'registered(dev_mode)', deviceId, platform });
+      return noContent({ cors });
+    }
+    return errorResponse('service_unavailable', 'Database is not available.', { status: 503, cors });
+  }
+
   const model = typeof payload?.model === 'string' ? payload.model.trim() : null;
   const osVersion = typeof payload?.osVersion === 'string' ? payload.osVersion.trim() : null;
-
-  const log = getLogger('api:v1:push:register');
 
   if (isDevToken) {
     log.info({ msg: 'registered(dev_mode)', deviceId, platform });

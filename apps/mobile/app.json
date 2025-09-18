@@ -27,7 +27,9 @@
     },
     "extra": {
       "apiBase": "http://10.0.2.2:3000",
-      "devAppJwt": "dev:user-demo|profile:read,chat:rw,push:register"
+      "devAuthCode": "dev:user-demo@example.com|Dev User",
+      "deviceId": "dev-simulator",
+      "pushDemoToken": "dummy-token"
     }
   }
 }

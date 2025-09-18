@@ -24,10 +24,63 @@
 4. 応答に含まれる `accessToken` と `refreshToken` を安全に保存（SecureStore）。
 5. `POST /api/v1/auth/refresh` に `{ refreshToken, deviceId }` を渡してローテーション。
 
+## ローカル環境変数（例）
+
+`.env.common` に以下のプレースホルダを追加済み。実機値は `.env.local` など Git 管理外で上書きする。
+
+```dotenv
+BFF_OIDC_AUTHORIZATION_ENDPOINT=https://example-tenant.b2clogin.com/oauth2/v2.0/authorize
+BFF_OIDC_TOKEN_ENDPOINT=https://example-tenant.b2clogin.com/oauth2/v2.0/token
+BFF_OIDC_CLIENT_ID=00000000-0000-0000-0000-000000000000
+BFF_OIDC_REDIRECT_URI=spar://auth/callback
+BFF_OIDC_SCOPE=openid profile email
+
+BFF_APP_JWT_SECRET=dev-secret-change-me
+# BFF_APP_JWT_ISSUER=https://api.example.com
+# BFF_APP_JWT_AUDIENCE=spar-mobile
+BFF_APP_JWT_ACCESS_TTL=900
+BFF_APP_JWT_REFRESH_TTL=2592000
+```
+
+- `BFF_OIDC_CLIENT_SECRET` が必要な場合はローカル専用 `.env` にのみ記載（コミット禁止）。
+- `MOBILE_ALLOWED_ORIGINS` は Expo / Web の実行ホストをカンマ区切りで設定。
+
+### 本番環境への切り替え
+
+- IdP (例: Azure AD B2C) でモバイル用クライアントを登録し、`redirect_uri` に `spar://auth/callback` を許可する。
+- 秘密情報 (`BFF_OIDC_CLIENT_SECRET`, `BFF_APP_JWT_SECRET`) は Key Vault 等で管理し、`.env.common` には記載しない。デプロイ環境でのみ環境変数として注入する。
+- `BFF_AUTH_DEV_MODE` を `0` に設定し、`dev:` 形式のコード受け入れを無効化する。
+- Expo 側では `extra.devAuthCode` を削除し、実際の認可コードフローのみでログインする。QA 向けには `app.config.js` や `.env` ランタイム設定で dev モードを制御する。
+- AppJWT シークレットは定期的にローテーションする。`@team3/auth-shared` の `verifyAppJwt` は `dev:` を許容しないため、監視で dev トークンの混入を検知する。
+
 ## 自動テスト
 
 - `npm run test` で Vitest を実行し、トークンユーティリティと `/api/v1/auth/*` のハンドラを検証できます。
 - 主要な依存はモックされるため、外部 OIDC や DB を起動せずにロジックの regresion を検知できます。
+
+### フェーズ1で追加した重点テスト
+
+| コマンド | 検証内容 |
+| --- | --- |
+| `npm run test -- apps/web/src/app/api/v1/me/route.test.ts apps/web/src/app/api/v1/push/register/route.test.ts` | `/api/v1/me` のレスポンス整形と Push 登録の主要分岐（dev トークン、DB 未接続、バリデーション） |
+| `npm run test -- apps/web/src/app/api/v1/auth/refresh/route.test.ts` | Refresh トークンのローテーションと NotFound / Device 不一致 / 期限切れハンドリング |
+
+## QA 手動チェックリスト（フェーズ1）
+
+0. **事前準備**:
+   - `.env.dev` などローカル専用ファイルにランダム生成した `BFF_APP_JWT_SECRET`（例: `openssl rand -base64 48` の結果）を設定し、サーバーを再起動する。
+   - `BFF_OIDC_CLIENT_SECRET` や `BFF_AUTH_DEV_MODE` なども `.env.dev` 側で上書きされていることを確認する。
+1. **Expo アプリ起動**: `expo start --android` もしくは `--ios` で起動し、ログにスキーム `spar://auth/callback` が登録されていることを確認する。
+2. **ログイン検証**:
+   - dev コードを使用する場合は `extra.devAuthCode` が設定されていることを確認し、「ログイン (OIDC/DEV)」ボタンを押下。
+   - 実機 OIDC の場合はブラウザが開き、正常に `spar://auth/callback` にリダイレクトされてアプリへ復帰することを確認。
+   - 画面表示が「ログインに成功しました」に変わり、SecureStore に `spar.auth.tokens` が保存されているか `expo-secure-store` のデバッグ機能で確認。
+3. **トークンリフレッシュ**: 「トークン更新」ボタンを押下し、`/api/v1/auth/refresh` が 200 を返すことを mitmproxy などで確認。レスポンス内の `refreshToken` が更新され、SecureStore の値も更新されていること。
+4. **Push トークン登録**: 「Push トークン登録」ボタンを押下し、`/api/v1/push/register` が 204 を返すこと、`devices` / `push_tokens` テーブルに対象レコードが保存されていることを Drizzle Studio で確認。
+5. **ログアウト**: 「ログアウト」ボタンで SecureStore のトークンが削除され、画面表示が「ログアウトしました」に変わることを確認。
+6. **異常系**: 端末日時を過去に変更する、あるいは Push 登録時にネットワークを切断して 4xx/5xx が返るケースを確認し、画面ステータスにエラーが表示されることをチェック。
+
+> メモ: QA では可能であれば Android 実機 (API 29+) と iOS 16+ の双方で上記を実施する。
 
 ## DB 永続化
 

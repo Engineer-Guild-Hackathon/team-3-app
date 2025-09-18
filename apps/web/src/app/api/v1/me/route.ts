@@ -1,6 +1,6 @@
 import { authorize } from '../_lib/auth';
 import { createCorsContext, buildPreflightResponse, rejectIfDisallowed } from '../_lib/cors';
-import { notImplemented } from '../_lib/responses';
+import { jsonResponse } from '../_lib/responses';
 
 export function OPTIONS(request: Request) {
   return buildPreflightResponse(request);
@@ -16,5 +16,14 @@ export async function GET(request: Request) {
     return result.response;
   }
 
-  return notImplemented({ cors });
+  const { user } = result;
+  const body = {
+    id: user.userId,
+    scopes: user.scopes,
+    authSource: user.source,
+    tokenType: user.tokenType,
+    deviceId: user.deviceId ?? null,
+  };
+
+  return jsonResponse(body, { cors });
 }
