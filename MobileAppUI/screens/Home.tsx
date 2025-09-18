@@ -1,8 +1,8 @@
 import * as React from "react";
-import { ScrollView, StyleSheet, View, ImageBackground } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ScrollView, StyleSheet, View } from "react-native";
 
-import Header from "../components/Header";
+import PageShell from "../components/PageShell";
+import { homeHeaderConfig } from "../components/headerConfigs";
 import HistoryDrawer from "../components/HistoryDrawer";
 import HomeMainArea from "../components/HomeMainArea";
 import { Color, StyleVariable } from "../GlobalStyles";
@@ -17,34 +17,28 @@ const SAMPLE_HISTORY: ChatHistoryEntry[] = [
 
 const Home = () => {
   return (
-    <SafeAreaView style={styles.screen} edges={["bottom", "left", "right"]}>
-      <Header />
+    <PageShell headerConfig={homeHeaderConfig} rightActionVariant="settings" contentStyle={styles.shellContent}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.homeScrollViewContent}
       >
-        <ImageBackground
-          style={[styles.layoutpageshellIcon, styles.mainareaFlexBox]}
-          resizeMode="cover"
-        >
-          <View style={[styles.mainarea, styles.mainareaFlexBox]}>
-            <View style={[styles.contentarea, styles.mainareaFlexBox]}>
-              <HomeMainArea historyEntries={SAMPLE_HISTORY} activeHistoryId="1" />
-            </View>
-            <View style={styles.drawerlayer}>
-              <HistoryDrawer entries={SAMPLE_HISTORY} activeId="1" />
-            </View>
+        <View style={[styles.mainarea, styles.mainareaFlexBox]}>
+          <View style={[styles.contentarea, styles.mainareaFlexBox]}>
+            <HomeMainArea historyEntries={SAMPLE_HISTORY} activeHistoryId="1" />
           </View>
-        </ImageBackground>
+          <View style={styles.drawerlayer}>
+            <HistoryDrawer entries={SAMPLE_HISTORY} activeId="1" />
+          </View>
+        </View>
       </ScrollView>
-    </SafeAreaView>
+    </PageShell>
   );
 };
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: Color.colorWhite,
+  shellContent: {
+    alignItems: "center",
+    gap: StyleVariable.spaceMd,
   },
   scroll: {
     flex: 1,
@@ -54,16 +48,11 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexDirection: "column",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-start",
   },
   mainareaFlexBox: {
     alignSelf: "stretch",
     flex: 1,
-  },
-  layoutpageshellIcon: {
-    alignItems: "center",
-    padding: StyleVariable.spaceLg,
-    gap: StyleVariable.spaceMd,
   },
   mainarea: {
     overflow: "hidden",

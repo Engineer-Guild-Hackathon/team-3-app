@@ -1,3 +1,5 @@
+import { StyleSheet } from "react-native";
+
 /* Fonts */
 export const FontFamily = {
   roundedMplus1c: "Rounded Mplus 1c",
@@ -67,3 +69,21 @@ export const Border = {
   br_12: 12,
   br_16: 16,
 };
+
+export const GlassStyle = StyleSheet.create({
+  surface: {
+    backgroundColor: Color.colorSurfaceGlass,
+    borderRadius: StyleVariable.radiusLg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255, 255, 255, 0.6)",
+    shadowColor: Color.colorGray200,
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    elevation: 12,
+    overflow: "hidden",
+  },
+});

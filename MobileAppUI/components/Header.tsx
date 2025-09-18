@@ -1,58 +1,65 @@
 import * as React from "react";
 import { StyleSheet, View } from "react-native";
 import { Image } from "expo-image";
-import { SafeAreaView } from "react-native-safe-area-context";
 
-import CreateIcon from "../assets/Create.svg";
-import CreateAltIcon from "../assets/Create2.svg";
-import MenuIcon from "../assets/Hamburger-Menu.svg";
-import IconButton, { IconButtonProps } from "./IconButton";
+import IconButton from "./IconButton";
 import { Gap, Color, StyleVariable, Padding } from "../GlobalStyles";
-
-type HeaderButtonConfig = Pick<IconButtonProps, "label" | "Icon" | "onPress" | "accessibilityLabel">;
+import type { HeaderConfig, HeaderButtonConfig, HeaderLogoConfig } from "./headerTypes";
+import { defaultHeaderConfig } from "./headerConfigs";
 
 export type HeaderProps = {
-  menuButton?: HeaderButtonConfig;
-  actionButtons?: HeaderButtonConfig[];
+  config?: HeaderConfig;
 };
 
-const defaultMenuButton: HeaderButtonConfig = {
-  label: "履歴",
-  Icon: MenuIcon,
+const resolveButton = (
+  button?: HeaderButtonConfig | null,
+  fallback?: HeaderButtonConfig | null,
+): HeaderButtonConfig | null => button ?? fallback ?? null;
+
+const resolveActions = (
+  actions?: HeaderButtonConfig[],
+  fallback?: HeaderButtonConfig[],
+): HeaderButtonConfig[] => actions ?? fallback ?? [];
+
+const resolveLogo = (
+  logo?: HeaderLogoConfig,
+  fallback?: HeaderLogoConfig,
+): HeaderLogoConfig | null => {
+  if (!logo && !fallback) {
+    return null;
+  }
+  return { ...fallback, ...logo } as HeaderLogoConfig;
 };
 
-const defaultActionButtons: HeaderButtonConfig[] = [
-  {
-    Icon: CreateIcon,
-    accessibilityLabel: "新しいチャット",
-  },
-  {
-    Icon: CreateAltIcon,
-    accessibilityLabel: "その他の操作",
-  },
-];
+const Header = ({ config }: HeaderProps) => {
+  // 各画面の設定を統合してヘッダー表示内容を決定
+  const resolvedMenu = resolveButton(config?.menu, defaultHeaderConfig.menu);
+  const resolvedActions = resolveActions(config?.actions, defaultHeaderConfig.actions);
+  const resolvedLogo = resolveLogo(config?.logo, defaultHeaderConfig.logo);
 
-const Header = ({ menuButton = defaultMenuButton, actionButtons = defaultActionButtons }: HeaderProps) => {
   return (
-    <SafeAreaView edges={["top", "left", "right"]} style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.topBar}>
         <View style={styles.leftGroup}>
-          <IconButton {...menuButton} />
+          {resolvedMenu ? <IconButton {...resolvedMenu} /> : null}
         </View>
         <View style={styles.centerGroup}>
-          <Image
-            style={styles.logo}
-            contentFit="contain"
-            source={require("../assets/SPARLogo.png")}
-          />
+          {resolvedLogo ? (
+            <Image
+              style={[styles.logo, resolvedLogo.style]}
+              contentFit={resolvedLogo.contentFit ?? "contain"}
+              source={resolvedLogo.source}
+              accessibilityLabel={resolvedLogo.accessibilityLabel}
+            />
+          ) : null}
         </View>
         <View style={styles.rightGroup}>
-          {actionButtons.map((button, index) => (
+          {resolvedActions.map((button, index) => (
             <IconButton key={index} {...button} />
           ))}
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -77,21 +84,25 @@ const styles = StyleSheet.create({
     paddingVertical: StyleVariable.spaceSm,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     gap: Gap.gap_10,
   },
   leftGroup: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "flex-start",
   },
   centerGroup: {
     flex: 1,
     paddingHorizontal: Padding.p_10,
     alignItems: "center",
+    justifyContent: "center",
   },
   rightGroup: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "flex-end",
     gap: Gap.gap_10,
   },
   logo: {
