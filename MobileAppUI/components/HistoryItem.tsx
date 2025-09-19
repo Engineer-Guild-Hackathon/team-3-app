@@ -10,7 +10,6 @@ import {
   Padding,
   Gap,
 } from "../GlobalStyles";
-import Avatar from "./Avatar";
 import type { ChatHistoryEntry } from "./types";
 
 export type HistoryItemProps = ChatHistoryEntry & {
@@ -23,9 +22,53 @@ const HistoryItem = ({
   snippet,
   timestamp,
   unread,
+  lastAssistantStatus,
   isActive = false,
   onPress,
 }: HistoryItemProps) => {
+  const timestampParts = React.useMemo(() => {
+    if (!timestamp) {
+      return null;
+    }
+
+    const parsed = new Date(timestamp);
+    if (!Number.isNaN(parsed.getTime())) {
+      const now = new Date();
+      const isSameDay =
+        parsed.getFullYear() === now.getFullYear() &&
+        parsed.getMonth() === now.getMonth() &&
+        parsed.getDate() === now.getDate();
+
+      const dateLabel = isSameDay
+        ? "今日"
+        : new Intl.DateTimeFormat("ja-JP", {
+            month: "2-digit",
+            day: "2-digit",
+          }).format(parsed);
+
+      const timeLabel = new Intl.DateTimeFormat("ja-JP", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(parsed);
+
+      return { date: dateLabel, time: timeLabel };
+    }
+
+    const trimmed = timestamp.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const [head, ...rest] = trimmed.split(" ");
+    if (rest.length > 0) {
+      return { date: head, time: rest.join(" ") };
+    }
+    if (/\d{1,2}:\d{2}/.test(trimmed)) {
+      return { date: "今日", time: trimmed };
+    }
+    return { date: trimmed, time: "" };
+  }, [timestamp]);
+
   return (
     <Pressable
       onPress={onPress}
@@ -38,12 +81,11 @@ const HistoryItem = ({
       accessibilityRole="button"
       accessibilityLabel={`${title}${unread ? " 未読" : ""}`}
     >
-      <View style={styles.leading}>
-        <Avatar size={StyleVariable.iconSizeLg} />
-      </View>
       <View style={styles.content}>
         <View style={styles.titleRow}>
-          {unread ? <UnreadDot style={styles.unreadDot} width={8} height={8} /> : null}
+          {unread && lastAssistantStatus === -1 ? (
+            <UnreadDot style={styles.unreadDot} width={8} height={8} />
+          ) : null}
           <Text numberOfLines={1} style={styles.title}>
             {title}
           </Text>
@@ -54,9 +96,16 @@ const HistoryItem = ({
           </Text>
         ) : null}
       </View>
-      {timestamp ? (
+      {timestampParts ? (
         <View style={styles.trailing}>
-          <Text style={styles.timestamp}>{timestamp}</Text>
+          <Text numberOfLines={1} style={styles.timestampDate}>
+            {timestampParts.date}
+          </Text>
+          {timestampParts.time ? (
+            <Text numberOfLines={1} style={styles.timestampTime}>
+              {timestampParts.time}
+            </Text>
+          ) : null}
         </View>
       ) : null}
     </Pressable>
@@ -79,14 +128,9 @@ const styles = StyleSheet.create({
   pressed: {
     backgroundColor: Color.colorChatTapped,
   },
-  leading: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
   content: {
     flex: 1,
     gap: StyleVariable.space4,
-    paddingHorizontal: Padding.p_10,
   },
   titleRow: {
     flexDirection: "row",
@@ -113,10 +157,19 @@ const styles = StyleSheet.create({
   trailing: {
     paddingHorizontal: Padding.p_10,
     alignItems: "flex-end",
+    justifyContent: "center",
+    gap: StyleVariable.space4,
   },
-  timestamp: {
+  timestampDate: {
     fontSize: FontSize.size_14,
-    lineHeight: 22,
+    lineHeight: 20,
+    color: Color.colorTextSecondary,
+    fontFamily: FontFamily.notoSansJPRegular,
+    textAlign: "center",
+  },
+  timestampTime: {
+    fontSize: FontSize.size_14,
+    lineHeight: 20,
     color: Color.colorTextSecondary,
     fontFamily: FontFamily.notoSansJPRegular,
     textAlign: "center",

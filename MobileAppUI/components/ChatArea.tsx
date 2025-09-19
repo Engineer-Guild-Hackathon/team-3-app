@@ -10,9 +10,9 @@ export type ChatAreaProps = {
 };
 
 const FALLBACK_MESSAGES: ChatMessage[] = [
-  { id: "m1", author: "assistant", text: "ご相談ありがとうございます。", createdAt: "12:00" },
+  { id: "m1", author: "assistant", text: "ご相談ありがとうございます。", status: -1, createdAt: "12:00" },
   { id: "m2", author: "user", text: "レポートをまとめてください。", createdAt: "12:01" },
-  { id: "m3", author: "assistant", text: "承知しました。ポイントはどこでしょうか？", createdAt: "12:02" },
+  { id: "m3", author: "assistant", text: "承知しました。ポイントはどこでしょうか？", status: -1, createdAt: "12:02" },
 ];
 
 const ChatArea = ({ messages = [] }: ChatAreaProps) => {
@@ -25,7 +25,9 @@ const ChatArea = ({ messages = [] }: ChatAreaProps) => {
       return "empty";
     }
     const last = data[data.length - 1];
-    return `${last.id}|${last.text}|${last.pending ? "pending" : "done"}`;
+    const pendingKey = last.pending ? "pending" : "done";
+    const statusKey = last.status ?? "unknown";
+    return `${last.id}|${last.text}|${pendingKey}|${statusKey}`;
   }, [data]);
 
   React.useEffect(() => {

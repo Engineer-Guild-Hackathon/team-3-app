@@ -8,9 +8,28 @@ import HistoryDrawer from "./HistoryDrawer";
 import type { ChatHistoryEntry, ChatMessage } from "./types";
 
 const SAMPLE_HISTORY: ChatHistoryEntry[] = [
-  { id: "1", title: "最近の質問", snippet: "プロジェクト状況を整理", timestamp: "12:30", unread: true },
-  { id: "2", title: "AI 相談", snippet: "課題の洗い出し", timestamp: "12:08" },
-  { id: "3", title: "資料レビュー", snippet: "構成の確認", timestamp: "昨日" },
+  {
+    id: "1",
+    title: "最近の質問",
+    snippet: "プロジェクト状況を整理",
+    timestamp: "12:30",
+    unread: true,
+    lastAssistantStatus: -1,
+  },
+  {
+    id: "2",
+    title: "AI 相談",
+    snippet: "課題の洗い出し",
+    timestamp: "12:08",
+    unread: false,
+  },
+  {
+    id: "3",
+    title: "資料レビュー",
+    snippet: "構成の確認",
+    timestamp: "昨日",
+    unread: false,
+  },
 ];
 
 const SAMPLE_MESSAGES: ChatMessage[] = [

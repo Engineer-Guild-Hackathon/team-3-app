@@ -76,6 +76,7 @@ const Chat = ({ navigation, route }: ChatScreenProps) => {
       author: "assistant",
       text: "こんにちは！今日はどのようなご相談でしょうか？",
       createdAt: formatTime(now),
+      status: -1 as const,
     };
 
     setThreads((prev) => {
@@ -113,6 +114,7 @@ const Chat = ({ navigation, route }: ChatScreenProps) => {
         text: "考え中・・・",
         createdAt: formatTime(now),
         pending: true,
+        status: -1 as const,
       };
 
       const targetThreadId = activeThreadId;
@@ -146,6 +148,7 @@ const Chat = ({ navigation, route }: ChatScreenProps) => {
                     text: responseText,
                     createdAt: responseTime,
                     pending: false,
+                    status: -1 as const,
                   }
                 : msg,
             );

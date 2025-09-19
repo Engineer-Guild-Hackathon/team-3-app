@@ -7,15 +7,26 @@ import { StyleVariable, Color } from "../GlobalStyles";
 export type SendButtonProps = {
   onPress?: () => void;
   accessibilityLabel?: string;
+  disabled?: boolean;
 };
 
-const SendButton = ({ onPress, accessibilityLabel = "送信" }: SendButtonProps) => {
+const SendButton = ({
+  onPress,
+  accessibilityLabel = "送信",
+  disabled = false,
+}: SendButtonProps) => {
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.button,
+        disabled ? styles.disabled : null,
+        pressed && !disabled ? styles.pressed : null,
+      ]}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled }}
     >
       <Vector width="75%" height="75%" />
     </Pressable>
@@ -33,6 +44,9 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.8,
+  },
+  disabled: {
+    backgroundColor: Color.colorRoleAssistant,
   },
 });
 

@@ -10,5 +10,7 @@ export const buildHistoryEntry = (thread: ChatThread): ChatHistoryEntry => {
     snippet: lastMessage?.text,
     timestamp: lastMessage?.createdAt,
     unread: isAssistantLast,
+    lastAssistantStatus:
+      isAssistantLast && !lastMessage?.pending ? lastMessage?.status : undefined,
   };
 };

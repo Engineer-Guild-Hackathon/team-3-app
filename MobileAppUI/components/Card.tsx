@@ -38,7 +38,15 @@ const Card = ({
   return (
     <View style={[GlassStyle.surface, styles.container, dynamicStyle, style]}>
       {title ? <Text style={styles.title}>{title}</Text> : null}
-      {children ? <View style={styles.body}>{children}</View> : children}
+      {children ? (
+        <View
+          style={[styles.body, heightMode !== "auto" ? styles.bodyFill : null]}
+        >
+          {children}
+        </View>
+      ) : (
+        children
+      )}
     </View>
   );
 };
@@ -63,6 +71,11 @@ const styles = StyleSheet.create({
   },
   body: {
     gap: StyleVariable.spaceSm,
+  },
+  bodyFill: {
+    flex: 1,
+    alignSelf: "stretch",
+    minHeight: 0,
   },
 });
 

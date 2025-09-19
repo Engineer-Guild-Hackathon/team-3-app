@@ -4,6 +4,7 @@ export type ChatHistoryEntry = {
   snippet?: string;
   timestamp?: string;
   unread?: boolean;
+  lastAssistantStatus?: -1 | 0 | 1;
 };
 
 export type ChatMessage = {
@@ -12,6 +13,7 @@ export type ChatMessage = {
   text: string;
   createdAt: string;
   pending?: boolean;
+  status?: -1 | 0 | 1;
 };
 
 export type ChatThread = {

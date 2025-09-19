@@ -3,21 +3,61 @@ import { StyleSheet, View } from "react-native";
 
 import { Gap, Padding, Color } from "../GlobalStyles";
 import ChatArea from "./ChatArea";
-import InputArea from "./InputArea";
+import InputArea, { type InputAreaStatus } from "./InputArea";
 import type { ChatMessage } from "./types";
 
 export type ChatMainAreaProps = {
   messages?: ChatMessage[];
   onSendMessage?: (text: string) => void;
+  inputStatus?: InputAreaStatus;
 };
 
-const ChatMainArea = ({ messages = [], onSendMessage }: ChatMainAreaProps) => {
+const ChatMainArea = ({
+  messages = [],
+  onSendMessage,
+  inputStatus,
+}: ChatMainAreaProps) => {
   const [draft, setDraft] = React.useState("");
+  const hasPendingAssistant = React.useMemo(
+    () =>
+      messages.some(
+        (message) => message.author === "assistant" && message.pending,
+      ),
+    [messages],
+  );
+  const latestAssistantStatus = React.useMemo<-1 | 0 | 1 | null>(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const candidate = messages[index];
+      if (candidate.author !== "assistant" || candidate.pending) {
+        continue;
+      }
+      return candidate.status ?? null;
+    }
+    return null;
+  }, [messages]);
+  const resolvedStatus: InputAreaStatus = React.useMemo(() => {
+    if (inputStatus) {
+      return inputStatus;
+    }
+    if (hasPendingAssistant) {
+      return "waiting";
+    }
+    if (latestAssistantStatus === 0 || latestAssistantStatus === 1) {
+      return "completed";
+    }
+    return "default";
+  }, [hasPendingAssistant, inputStatus, latestAssistantStatus]);
 
   const handleSend = (text: string) => {
-    onSendMessage?.(text);
     setDraft("");
+    onSendMessage?.(text);
   };
+
+  React.useEffect(() => {
+    if (resolvedStatus !== "default") {
+      setDraft("");
+    }
+  }, [resolvedStatus]);
 
   return (
     <View style={styles.container}>
@@ -25,7 +65,12 @@ const ChatMainArea = ({ messages = [], onSendMessage }: ChatMainAreaProps) => {
         <ChatArea messages={messages} />
       </View>
       <View style={styles.inputContainer}>
-        <InputArea value={draft} onChangeText={setDraft} onSend={handleSend} />
+        <InputArea
+          value={draft}
+          onChangeText={setDraft}
+          onSend={handleSend}
+          status={resolvedStatus}
+        />
       </View>
     </View>
   );

@@ -11,9 +11,26 @@ export type HistoryListProps = {
 };
 
 const FALLBACK_ENTRIES: ChatHistoryEntry[] = [
-  { id: "1", title: "最近の質問", snippet: "チャットの流れを教えて" , timestamp: "12:30", unread: true },
-  { id: "2", title: "AI 相談", snippet: "分析レポートをまとめて" , timestamp: "12:08" },
-  { id: "3", title: "設計レビュー", snippet: "画面遷移について" , timestamp: "昨日" },
+  {
+    id: "1",
+    title: "最近の質問",
+    snippet: "チャットの流れを教えて",
+    timestamp: "12:30",
+    unread: true,
+    lastAssistantStatus: -1,
+  },
+  {
+    id: "2",
+    title: "AI 相談",
+    snippet: "分析レポートをまとめて",
+    timestamp: "12:08",
+  },
+  {
+    id: "3",
+    title: "設計レビュー",
+    snippet: "画面遷移について",
+    timestamp: "昨日",
+  },
 ];
 
 const HistoryList = ({ entries, activeId, onSelect }: HistoryListProps) => {
@@ -42,10 +59,13 @@ const HistoryList = ({ entries, activeId, onSelect }: HistoryListProps) => {
 const styles = StyleSheet.create({
   scroll: {
     alignSelf: "stretch",
+    flex: 1,
+    minHeight: 0,
   },
   contentContainer: {
     paddingHorizontal: 16,
     paddingVertical: 8,
+    paddingBottom: 16,
     gap: 8,
   },
   separator: {
