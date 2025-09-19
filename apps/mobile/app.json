@@ -20,7 +20,8 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.devNeko.spar"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -29,7 +30,14 @@
       "apiBase": "http://10.0.2.2:3000",
       "devAuthCode": "dev:user-demo@example.com|Dev User",
       "deviceId": "dev-simulator",
-      "pushDemoToken": "dummy-token"
-    }
+      "pushDemoToken": "dummy-token",
+      "eas": {
+        "projectId": "a6d579ae-a088-4371-b395-d1a58be9414b"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ]
   }
 }

@@ -1,5 +1,6 @@
 import * as React from "react";
 import { StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Gap, Padding, Color } from "../GlobalStyles";
 import ChatArea, { type ChatAreaHandle } from "./ChatArea";
@@ -17,7 +18,12 @@ const ChatMainArea = ({
   onSendMessage,
   inputStatus,
 }: ChatMainAreaProps) => {
+  const insets = useSafeAreaInsets();
   const [draft, setDraft] = React.useState("");
+  const inputContainerStyle = React.useMemo(
+    () => [styles.inputContainer, { paddingBottom: Padding.p_18 + insets.bottom }],
+    [insets.bottom],
+  );
   const chatAreaRef = React.useRef<ChatAreaHandle>(null);
   const [isChatAtBottom, setIsChatAtBottom] = React.useState(true);
   // 最新メッセージまでスクロールする汎用処理を集約
@@ -94,7 +100,7 @@ const ChatMainArea = ({
           onBottomStateChange={handleChatBottomStateChange}
         />
       </View>
-      <View style={styles.inputContainer}>
+      <View style={inputContainerStyle}>
         <InputArea
           value={draft}
           onChangeText={setDraft}
@@ -118,7 +124,6 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     paddingHorizontal: Padding.p_24,
-    paddingBottom: Padding.p_18,
     paddingTop: Gap.gap_10,
     backgroundColor: Color.colorGray100,
   },

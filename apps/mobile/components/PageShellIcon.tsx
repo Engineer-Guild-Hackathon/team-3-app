@@ -5,11 +5,38 @@ import { StyleVariable, Color } from "../GlobalStyles";
 import ChatMainArea from "./ChatMainArea";
 import Header from "./Header";
 import HistoryDrawer from "./HistoryDrawer";
-import { getSampleChatMessages, getSampleHistoryEntries } from "../utils/sampleData";
+import type { ChatHistoryEntry, ChatMessage } from "./types";
+
+const SAMPLE_MESSAGES: ChatMessage[] = [
+  {
+    id: "preview-user-1",
+    author: "user",
+    text: "確率の基礎を教えてください",
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: "preview-assistant-1",
+    author: "assistant",
+    text: "もちろんです。順番に整理してみましょう。",
+    createdAt: new Date().toISOString(),
+    status: -1,
+  },
+];
+
+const SAMPLE_HISTORY: ChatHistoryEntry[] = [
+  {
+    id: "preview-thread-1",
+    title: "確率入門",
+    snippet: SAMPLE_MESSAGES[1].text,
+    timestamp: SAMPLE_MESSAGES[1].createdAt,
+    unread: false,
+    lastAssistantStatus: -1,
+  },
+];
 
 const PageShellIcon = () => {
-  const messages = React.useMemo(() => getSampleChatMessages(), []);
-  const historyEntries = React.useMemo(() => getSampleHistoryEntries(), []);
+  const messages = React.useMemo(() => SAMPLE_MESSAGES, []);
+  const historyEntries = React.useMemo(() => SAMPLE_HISTORY, []);
 
   return (
     <ImageBackground

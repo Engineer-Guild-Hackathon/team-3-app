@@ -21,4 +21,11 @@ export type ChatThread = {
   title: string;
   messages: ChatMessage[];
   unread?: boolean;
+  status?: "in_progress" | "ended";
+  subjectId?: string | null;
+  topicId?: string | null;
+  updatedAt?: string;
+  createdAt?: string;
+  messagesLoaded?: boolean;
+  isLoadingMessages?: boolean;
 };

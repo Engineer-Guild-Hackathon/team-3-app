@@ -16,6 +16,7 @@ export type HomeMainAreaProps = {
   historyEntries?: ChatHistoryEntry[];
   activeHistoryId?: string;
   onSelectHistory?: (entry: ChatHistoryEntry) => void;
+  onLogout?: () => void;
 };
 
 const HomeMainArea = ({
@@ -23,11 +24,12 @@ const HomeMainArea = ({
   historyEntries = [],
   activeHistoryId,
   onSelectHistory,
+  onLogout,
 }: HomeMainAreaProps) => {
   // ホーム画面中央領域の構成要素をまとめて配置
   return (
     <View style={styles.container}>
-      <UserInfo name={userName} />
+      <UserInfo name={userName} onLogout={onLogout} />
       <HistoryCard
         entries={historyEntries}
         activeId={activeHistoryId}
