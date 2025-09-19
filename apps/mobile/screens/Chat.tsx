@@ -143,7 +143,6 @@ const Chat = ({ navigation, route }: ChatScreenProps) => {
           messages={activeThread?.messages ?? []}
           onSendMessage={handleSendMessage}
         />
-        {statusMessage ? <Text style={styles.statusText}>{statusMessage}</Text> : null}
       </KeyboardAvoidingView>
     </PageShell>
   );
@@ -158,11 +157,6 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingBottom: 16,
     gap: 8,
-  },
-  statusText: {
-    alignSelf: "center",
-    fontSize: 13,
-    color: "#475569",
   },
 });
 

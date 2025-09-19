@@ -103,6 +103,7 @@ const Checkbox = React.forwardRef<Pressable, CheckboxProps>(
                   strokeWidth={2.4}
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  fill="none"
                 />
               </Svg>
             ) : null}

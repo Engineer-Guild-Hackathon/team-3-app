@@ -105,9 +105,6 @@ const Home = ({ navigation }: HomeScreenProps) => {
                 onSelectHistory={handleSelectHistory}
                 onLogout={handleLogout}
               />
-              {statusMessage ? (
-                <Text style={styles.statusText}>{statusMessage}</Text>
-              ) : null}
             </View>
           </View>
         </View>
@@ -147,10 +144,6 @@ const styles = StyleSheet.create({
   homeContentStack: {
     flex: 1,
     gap: StyleVariable.spaceMd,
-  },
-  statusText: {
-    fontSize: 14,
-    color: "#475569",
   },
 });
 
