@@ -5,7 +5,7 @@ import { createCorsContext, buildPreflightResponse, rejectIfDisallowed } from '.
 import { errorResponse, jsonResponse } from '../_lib/responses';
 import { runChat } from '@/lib/pipeline';
 import { getLogger } from '@/lib/logger';
-import { isConversationTurn, isRunChatOutput } from '@/lib/schemas';
+import { isConversationTurn, isRunChatOutput, isChatTriState } from '@/lib/schemas';
 import type { ConversationTurn } from '@/types/llm';
 import { numericIdFromUuid } from '@/lib/chat/id';
 import { db } from '@/db/client';
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       subject,
       history,
       answer: output.answer,
-      ended: output.status !== -1,
+      ended: output.status !== -1 && output.status !== 999,
     });
 
     log.info({ msg: 'run_chat:success', chatUuid, numericChatId, status: output.status, persisted: meta?.assistantPersisted ?? false });
@@ -101,7 +101,7 @@ type PersistParams = {
   userId: string;
   chatUuid: string;
   subject: string;
-  history: { assistant: string; user: string }[];
+  history: ConversationTurn[];
   answer: string;
   ended: boolean;
 };
@@ -205,10 +205,12 @@ function isValidPayload(payload: unknown): payload is ChatRequestPayload {
   return true;
 }
 
-function normalizeHistory(items: ConversationTurn[]): { assistant: string; user: string }[] {
+function normalizeHistory(items: ConversationTurn[]): ConversationTurn[] {
   return items.map((turn) => ({
     assistant: typeof turn.assistant === 'string' ? turn.assistant : '',
+    assistantStatus: isChatTriState(turn.assistantStatus) ? turn.assistantStatus : undefined,
     user: typeof turn.user === 'string' ? turn.user : '',
+    userStatus: isChatTriState(turn.userStatus) ? turn.userStatus : undefined,
   }));
 }
 

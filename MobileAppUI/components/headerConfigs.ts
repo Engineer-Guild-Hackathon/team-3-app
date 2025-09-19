@@ -1,6 +1,6 @@
 import CreateIcon from "../assets/Create.svg";
 import MenuIcon from "../assets/Hamburger-Menu.svg";
-import HomeIcon from "../assets/Home.svg";
+import HomeIcon from "../assets/home.svg";
 import SettingIcon from "../assets/Setting.svg";
 
 import { HEADER_ACTION_IDS, HEADER_LABELS } from "./headerConstants";

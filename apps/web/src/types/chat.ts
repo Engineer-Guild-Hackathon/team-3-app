@@ -1,5 +1,7 @@
 // チャット関連の型定義（日本語コメント）
 
+import type { ChatStates } from "@/types/llm";
+
 export type ChatRole = "user" | "assistant" | "system";
 
 export type ChatMessage = {
@@ -7,6 +9,7 @@ export type ChatMessage = {
   role: ChatRole;
   content: string;
   createdAt: number;
+  status?: ChatStates;
 };
 
 export type ChatSession = {
