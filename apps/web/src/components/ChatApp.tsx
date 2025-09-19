@@ -10,13 +10,29 @@ import type { RunChatInput } from "@/types/llm";
 import SparSidebar from "./spar/ChatSidebar";
 import SparChatbot from "./spar/Chatbot";
 import SparProfile from "./spar/Profile";
+import ChatTagPanel from "./spar/ChatTagPanel";
 // 共通ユーティリティ（将来のモバイル移植も見据えて分離）
 import { numericIdFromUuid } from "@/lib/chat/id";
 import { messagesToTurns } from "@/lib/chat/mapping";
+import { endpoints } from "@/lib/api/endpoints";
 import { apiFetchJson } from "@/lib/http";
 import { getSubjectName, getTopicName } from "@/lib/subjects";
 import { loadSessions, saveSessions } from "@/lib/storage/sessionStore";
 import { listChats as apiListChats, createChat as apiCreateChat, runChat as apiRunChat, renameChat as apiRenameChat, deleteChat as apiDeleteChat } from "@/lib/api/chat";
+import {
+  fetchTagTypes,
+  fetchTags,
+  fetchChatTags,
+  attachChatTag,
+  detachChatTag,
+  fetchTagMastery,
+  updateTagMastery,
+  type TagTypeItem,
+  type TagSummary,
+  type ChatTagItem,
+  type TagMasteryItem,
+} from "@/lib/api/tags";
+import { useAppJwt } from "@/components/providers/AppJwtProvider";
 
 // UUID生成（衝突リスクが非常に低い）
 const rid = () => crypto.randomUUID();
@@ -34,7 +50,8 @@ type Props = { initialId?: string; showProfileOnEmpty?: boolean };
 
 export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props) {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const { ready: appJwtReady } = useAppJwt();
   const storageOwner = session?.user?.email ?? null;
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeId, setActiveId] = useState<string | null>(initialId ?? null);
@@ -54,6 +71,21 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   const loadingMessages = useRef<Record<string, boolean>>({});
   // 404 Not Found（所有権なし/存在しない）の表示制御
   const [notFound, setNotFound] = useState(false);
+  const [tagTypes, setTagTypes] = useState<TagTypeItem[]>([]);
+  const tagTypesLoadedRef = useRef(false);
+  const tagAllLoadedRef = useRef(false);
+  const [chatTagsMap, setChatTagsMap] = useState<Record<string, ChatTagItem[]>>({});
+  const [tagOptionsMap, setTagOptionsMap] = useState<Record<string, TagSummary[]>>({});
+  const [tagMasteryMap, setTagMasteryMap] = useState<Record<string, TagMasteryItem>>({});
+  const [tagLoading, setTagLoading] = useState(false);
+  const [tagActionKey, setTagActionKey] = useState<string | null>(null);
+  const [tagError, setTagError] = useState<string | null>(null);
+  const [forbiddenState, setForbiddenState] = useState<{ active: boolean; message?: string }>({ active: false });
+  const [listLoading, setListLoading] = useState(true);
+
+  const markForbidden = useCallback((message?: string) => {
+    setForbiddenState((prev) => (prev.active ? prev : { active: true, message }));
+  }, []);
 
   // 簡易フェッチヘルパー
   const fetchJson = useCallback(apiFetchJson, []);
@@ -89,6 +121,86 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   useEffect(() => {
     persistRef.current = persist;
   }, [persist]);
+
+  // タグ種別の初回ロード
+  useEffect(() => {
+    if (!appJwtReady || status !== 'authenticated') return;
+    if (tagTypesLoadedRef.current) return;
+    tagTypesLoadedRef.current = true;
+    let cancelled = false;
+    (async () => {
+      try {
+        const items = await fetchTagTypes();
+        if (!cancelled) setTagTypes(items);
+      } catch (error: any) {
+        if (!cancelled) {
+          if (error?.status === 403) {
+            markForbidden('タグ種別を取得する権限がありません。');
+          } else {
+            console.error(error);
+          }
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [markForbidden, appJwtReady, status]);
+
+  // タグ理解度の初回ロード
+  useEffect(() => {
+    if (!appJwtReady || status !== 'authenticated') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const items = await fetchTagMastery();
+        if (cancelled) return;
+        const map: Record<string, TagMasteryItem> = {};
+        items.forEach((item) => {
+          map[item.tagId] = item;
+        });
+        setTagMasteryMap(map);
+      } catch (error: any) {
+        if (!cancelled) {
+          if (error?.status === 403) {
+            markForbidden('理解度情報へのアクセスが拒否されました。');
+          } else {
+            console.error(error);
+          }
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [markForbidden, appJwtReady, status]);
+
+  // 利用可能タグ一覧（全体）のロード
+  useEffect(() => {
+    if (!appJwtReady || status !== 'authenticated') return;
+    if (tagAllLoadedRef.current) return;
+    tagAllLoadedRef.current = true;
+    let cancelled = false;
+    (async () => {
+      try {
+        const items = await fetchTags();
+        if (!cancelled) {
+          setTagOptionsMap((prev) => ({ ...prev, ['all::any']: items }));
+        }
+      } catch (error: any) {
+        if (!cancelled) {
+          if (error?.status === 403) {
+            markForbidden('タグ一覧を取得する権限がありません。');
+          } else {
+            console.error(error);
+          }
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [markForbidden, appJwtReady, status]);
 
   // 初期化：保存済み読み込み or 新規作成（初回描画前に反映するため useLayoutEffect を使用）
   const [bootstrapped, setBootstrapped] = useState(false);
@@ -145,10 +257,17 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
 
   // API: チャット一覧の読み込み（初回）
   useEffect(() => {
-    if (!storageOwner) return;
-    if (listFetchedForOwner.current === storageOwner) return;
+    if (status !== 'authenticated' || !appJwtReady || !storageOwner) {
+      setListLoading(false);
+      return;
+    }
+    if (listFetchedForOwner.current === storageOwner) {
+      setListLoading(false);
+      return;
+    }
     let cancelled = false;
     const run = async () => {
+      setListLoading(true);
       try {
         const items = await apiListChats();
         if (cancelled) return;
@@ -187,22 +306,99 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
           });
           return merged;
         });
-      } catch {
-        // ignore
+      } catch (error: any) {
+        if (error?.status === 403) {
+          markForbidden('チャット一覧を読み込む権限がありません。再ログインしてください。');
+        } else {
+          console.error(error);
+        }
+      } finally {
+        if (!cancelled) setListLoading(false);
       }
     };
     listFetchedForOwner.current = storageOwner;
     run();
     return () => {
       cancelled = true;
+      setListLoading(false);
     };
-  }, [storageOwner, showProfileOnEmpty, persist]);
+  }, [storageOwner, showProfileOnEmpty, persist, markForbidden, appJwtReady, status]);
 
   // アクティブセッションの取得
   const active = useMemo(() => sessions.find((s) => s.id === activeId) ?? null, [sessions, activeId]);
+  const activeChatTags = useMemo(() => chatTagsMap[activeId ?? ''] ?? [], [chatTagsMap, activeId]);
+  const tagOptionKey = active ? `${active.subjectId ?? 'all'}::${active.topicId ?? 'any'}` : 'none';
+
+  const availableTagOptions = useMemo(() => {
+    const baseList = tagOptionKey !== 'none'
+      ? tagOptionsMap[tagOptionKey] ?? tagOptionsMap['all::any'] ?? []
+      : tagOptionsMap['all::any'] ?? [];
+    const selected = new Set(activeChatTags.map((t) => t.tagId));
+    return baseList.filter((tag) => !selected.has(tag.id));
+  }, [tagOptionsMap, tagOptionKey, activeChatTags]);
+
+  useEffect(() => {
+    setTagError(null);
+  }, [activeId]);
+
+  useEffect(() => {
+    if (status !== 'authenticated' || !appJwtReady) return;
+    if (!activeId) return;
+    let cancelled = false;
+    setTagLoading(true);
+    (async () => {
+      try {
+        const items = await fetchChatTags(activeId);
+        if (!cancelled) {
+          setChatTagsMap((prev) => ({ ...prev, [activeId]: items }));
+        }
+      } catch (error: any) {
+        if (!cancelled) {
+          if (error?.status === 403) {
+            markForbidden('タグ情報を取得する権限がありません。');
+          } else {
+            console.error(error);
+          }
+        }
+      } finally {
+        if (!cancelled) setTagLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeId, markForbidden, appJwtReady, status]);
+
+  useEffect(() => {
+    if (status !== 'authenticated' || !appJwtReady) return;
+    if (!active) return;
+    if (tagOptionKey === 'none') return;
+    if (tagOptionsMap[tagOptionKey]) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const items = await fetchTags({ subjectId: active.subjectId ?? undefined, topicId: active.topicId ?? undefined });
+        if (!cancelled) {
+          setTagOptionsMap((prev) => ({ ...prev, [tagOptionKey]: items }));
+        }
+      } catch (error: any) {
+        if (!cancelled) {
+          if (error?.status === 403) {
+            markForbidden('タグ候補を取得する権限がありません。');
+          } else {
+            console.error(error);
+          }
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [active, tagOptionKey, tagOptionsMap, markForbidden, appJwtReady, status]);
 
   // 新規チャット
   const handleNewChat = async (opts?: { subjectId?: string; topicId?: string; prefTopicName?: string }) => {
+    if (status !== 'authenticated' || !appJwtReady) return;
     try {
       // API で作成（失敗時はローカルフォールバック）
       const created = await apiCreateChat({ subjectId: opts?.subjectId, topicId: opts?.topicId });
@@ -221,7 +417,11 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
       setNotFound(false);
       setInput("");
       router.replace(`/chats/${s.id}`);
-    } catch {
+    } catch (error: any) {
+      if (error?.status === 403) {
+        markForbidden('チャットを作成する権限がありません。再ログインしてください。');
+        return;
+      }
       const newSession = createSession();
       const next = [newSession, ...sessions];
       setSessions(next);
@@ -240,6 +440,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
 
   const handleRenameChat = useCallback(
     async (id: string) => {
+      if (status !== 'authenticated' || !appJwtReady) return;
       const target = sessions.find((s) => s.id === id);
       const currentTitle = target?.title ?? '';
       const nextTitleRaw = typeof window !== 'undefined' ? window.prompt('チャット名を変更', currentTitle) : null;
@@ -254,17 +455,22 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
           return next;
         });
       } catch (e: any) {
+        if (e?.status === 403) {
+          markForbidden('チャット名を変更する権限がありません。');
+          return;
+        }
         console.error(e);
         if (typeof window !== 'undefined') {
           window.alert(`名前の変更に失敗しました: ${String(e?.message ?? e)}`);
         }
       }
     },
-    [sessions, persist]
+    [sessions, persist, markForbidden, status, appJwtReady]
   );
 
   const handleDeleteChat = useCallback(
     async (id: string) => {
+      if (status !== 'authenticated' || !appJwtReady) return;
       const target = sessions.find((s) => s.id === id);
       if (!target) return;
       const confirmed = typeof window === 'undefined' ? false : window.confirm(`「${target.title || '無題のチャット'}」を削除しますか？`);
@@ -286,17 +492,113 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
           else router.replace('/chats');
         }
       } catch (e: any) {
+        if (e?.status === 403) {
+          markForbidden('チャットを削除する権限がありません。');
+          return;
+        }
         console.error(e);
         if (typeof window !== 'undefined') {
           window.alert(`削除に失敗しました: ${String(e?.message ?? e)}`);
         }
       }
     },
-    [sessions, persist, makeAutoIntroKey, activeId, router, showProfileOnEmpty]
+    [sessions, persist, makeAutoIntroKey, activeId, router, showProfileOnEmpty, markForbidden, status, appJwtReady]
+  );
+
+  const refreshChatTags = useCallback(async (chatId: string) => {
+    try {
+      const items = await fetchChatTags(chatId);
+      setChatTagsMap((prev) => ({ ...prev, [chatId]: items }));
+    } catch (error: any) {
+      if (error?.status === 403) {
+        markForbidden('タグ情報を取得する権限がありません。');
+        return;
+      }
+      console.error(error);
+      throw error;
+    }
+  }, [markForbidden]);
+
+  const attachTagToActive = useCallback(
+    async (tagId: string) => {
+      if (status !== 'authenticated' || !appJwtReady) return;
+      if (!activeId) return;
+      setTagActionKey(`attach:${tagId}`);
+      setTagError(null);
+      try {
+        await attachChatTag(activeId, { tagId });
+        await refreshChatTags(activeId);
+      } catch (error: any) {
+        if (error?.status === 403) {
+          markForbidden('タグを追加する権限がありません。');
+          return;
+        }
+        console.error(error);
+        const message = error instanceof Error ? error.message : 'タグの追加に失敗しました';
+        setTagError(message);
+        throw error;
+      } finally {
+        setTagActionKey(null);
+      }
+    },
+    [activeId, refreshChatTags, markForbidden, status, appJwtReady]
+  );
+
+  const detachTagFromActive = useCallback(
+    async (tagId: string) => {
+      if (status !== 'authenticated' || !appJwtReady) return;
+      if (!activeId) return;
+      setTagActionKey(`remove:${tagId}`);
+      setTagError(null);
+      try {
+        await detachChatTag(activeId, tagId);
+        setChatTagsMap((prev) => {
+          const current = prev[activeId] ?? [];
+          return { ...prev, [activeId]: current.filter((t) => t.tagId !== tagId) };
+        });
+      } catch (error: any) {
+        if (error?.status === 403) {
+          markForbidden('タグを削除する権限がありません。');
+          return;
+        }
+        console.error(error);
+        const message = error instanceof Error ? error.message : 'タグの削除に失敗しました';
+        setTagError(message);
+        throw error;
+      } finally {
+        setTagActionKey(null);
+      }
+    },
+    [activeId, markForbidden, status, appJwtReady]
+  );
+
+  const updateTagMasteryScore = useCallback(
+    async (tagId: string, score: number) => {
+      if (status !== 'authenticated' || !appJwtReady) return;
+      setTagActionKey(`mastery:${tagId}`);
+      setTagError(null);
+      try {
+        const item = await updateTagMastery(tagId, score, new Date().toISOString());
+        setTagMasteryMap((prev) => ({ ...prev, [tagId]: item }));
+      } catch (error: any) {
+        if (error?.status === 403) {
+          markForbidden('理解度を更新する権限がありません。');
+          return;
+        }
+        console.error(error);
+        const message = error instanceof Error ? error.message : '理解度の更新に失敗しました';
+        setTagError(message);
+        throw error;
+      } finally {
+        setTagActionKey(null);
+      }
+    },
+    [markForbidden, status, appJwtReady]
   );
 
   // 送信処理（API接続版）
   const handleSend = async (textArg?: string) => {
+    if (status !== 'authenticated' || !appJwtReady) return;
     const text = (textArg ?? input).trim();
     // ガード（ended の場合は送信不可）
     if (!active || !text || sending || active.status === 'ended') return;
@@ -394,20 +696,24 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         loadingMessages.current[active.id] = false;
       }
     } catch (e: any) {
-      // エラー時はメッセージとして表示
-      const err: ChatMessage = {
-        id: rid(),
-        role: "assistant",
-        content: `エラーが発生しました: ${String(e?.message ?? e)}`,
-        createdAt: Date.now(),
-      };
-      const withError = nextSessions.map((s) =>
-        s.id === active.id
-          ? { ...s, messages: [...s.messages, err], updatedAt: Date.now() }
-          : s
-      );
-      setSessions(withError);
-      persist(withError);
+      if (e?.status === 403) {
+        markForbidden('メッセージを送信する権限がありません。再ログインしてください。');
+      } else {
+        // エラー時はメッセージとして表示
+        const err: ChatMessage = {
+          id: rid(),
+          role: "assistant",
+          content: `エラーが発生しました: ${String(e?.message ?? e)}`,
+          createdAt: Date.now(),
+        };
+        const withError = nextSessions.map((s) =>
+          s.id === active.id
+            ? { ...s, messages: [...s.messages, err], updatedAt: Date.now() }
+            : s
+        );
+        setSessions(withError);
+        persist(withError);
+      }
     } finally {
       setSending(false);
     }
@@ -422,9 +728,9 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
     (async () => {
       try {
         setNotFound(false);
-        const data = await fetchJson(`/api/chats/${id}/messages`);
+        const data = await fetchJson(endpoints.messagesByChatId(id));
         if (cancelled) return;
-        const items = (data?.result?.items ?? []) as Array<{ id: string; role: 'user'|'assistant'|'system'; content: string; createdAt: string | number }>;
+        const items = (data?.items ?? []) as Array<{ id: string; role: 'user'|'assistant'|'system'; content: string; createdAt: string | number }>;
         if (!Array.isArray(items)) return;
         setSessions((prev) => {
           const updated = prev.map((s) => s.id === id
@@ -439,8 +745,14 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         });
         loadedMessages.current[id] = true;
       } catch (e: any) {
-        if (!cancelled && e?.status === 404) {
-          setNotFound(true);
+        if (!cancelled) {
+          if (e?.status === 404) {
+            setNotFound(true);
+          } else if (e?.status === 403) {
+            markForbidden('チャットメッセージを取得する権限がありません。');
+          } else {
+            console.error(e);
+          }
         }
       } finally {
         loadingMessages.current[id] = false;
@@ -449,10 +761,11 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
     return () => {
       cancelled = true;
     };
-  }, [activeId, fetchJson]);
+  }, [activeId, fetchJson, markForbidden]);
 
   // 新規作成直後のみ最初に LLM 応答を自動生成（既存チャットを開いたときは送信しない）
   useEffect(() => {
+    if (status !== 'authenticated' || !appJwtReady) return;
     const autoIntro = async () => {
       if (!active || sending) return;
       if (!pendingAutoIntroId || pendingAutoIntroId !== active.id) return;
@@ -484,13 +797,15 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
             setSessions((prev) => prev.map((s) => s.id === active.id ? { ...s, topicName: tname } : s));
           }
         }
+        const turns = messagesToTurns(active.messages);
+
         const themeDefault2 = (subj2 || '数学') === '英語' ? '仮定法' : '確率';
         const payload = {
           chatId,
           subject: subj2 || "数学",
           theme: topic2 || themeDefault2,
           clientSessionId: active.id,
-          history: [],
+          history: turns,
         } as RunChatInput;
         const data = await apiRunChat(payload);
         const assistant: ChatMessage = { id: rid(), role: "assistant", content: String(data.result?.answer ?? (data as any).result?.text ?? ""), createdAt: Date.now() };
@@ -518,17 +833,60 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
           try { localStorage.removeItem(ridKey); } catch {}
         }
         setPendingAutoIntroId(null);
-      } catch (_) {
-        // 失敗時は黙ってスキップ
+      } catch (error: any) {
+        if (error?.status === 403) {
+          markForbidden('チャットの自動応答を取得する権限がありません。');
+        } else {
+          console.error(error);
+        }
       } finally {
         delete autoIntroInFlight.current[active.id];
         setSending(false);
+        setPendingAutoIntroId(null);
       }
     };
     autoIntro();
-  }, [active, sending, pendingAutoIntroId, fetchSubjectName, fetchTopicName, persist, makeAutoIntroKey]);
+  }, [active, sending, pendingAutoIntroId, fetchSubjectName, fetchTopicName, persist, makeAutoIntroKey, markForbidden, appJwtReady, status]);
 
   // 予備：提案カードの選択ハンドラ（未使用）
+
+  if (forbiddenState.active) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center px-6">
+        <div className="w-full max-w-md rounded-3xl border border-white/40 bg-white/80 backdrop-blur-xl shadow-2xl shadow-black/20 p-8 text-center space-y-4">
+          <h1 className="text-2xl font-semibold text-gray-900">アクセスが拒否されました</h1>
+          <p className="text-sm leading-relaxed text-gray-700">
+            {forbiddenState.message ?? '必要な権限がありません。再ログインしてからもう一度お試しください。'}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              onClick={() => signOut({ callbackUrl: '/login' })}
+              className="rounded-xl bg-blue-600 text-white px-5 py-2 text-sm shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors"
+            >
+              ログアウトする
+            </button>
+            <button
+              onClick={() => (typeof window !== 'undefined' ? window.location.reload() : undefined)}
+              className="rounded-xl border border-gray-300 px-5 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              もう一度試す
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'authenticated' && !appJwtReady) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center px-6">
+        <div className="w-full max-w-md rounded-3xl border border-white/30 bg-white/70 backdrop-blur-xl shadow-xl shadow-black/10 p-8 text-center space-y-3">
+          <h1 className="text-xl font-semibold text-gray-900">セキュアセッションを準備中…</h1>
+          <p className="text-sm text-gray-700">数秒待ってから操作を続けてください。</p>
+        </div>
+      </div>
+    );
+  }
 
   // 初期読み込みが終わるまでは表示を抑制して履歴画面のチラつきを防ぐ
   if (!bootstrapped && initialId) {
@@ -536,7 +894,9 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   }
 
   const showProfile = showProfileOnEmpty && (!active || active.messages.length === 0);
-  const showEmptyState = bootstrapped && sessions.length === 0;
+  const showEmptyState = bootstrapped && sessions.length === 0 && !listLoading;
+  const tagBusy = tagActionKey != null;
+  const tagPanelLoading = tagLoading && activeChatTags.length === 0;
 
   return (
     <div className="h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 overflow-hidden">
@@ -610,15 +970,33 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
             </div>
           </div>
           ) : (
-            <SparChatbot
-              messages={active?.messages ?? []}
-              isLoading={sending}
-              hideInput={active?.status === 'ended'}
-              inputDisabled={sending}
-              onSendMessage={(text) => { handleSend(text); }}
-              subjectLabel={active?.subjectName || ((active?.subjectId ? undefined : '数学')) || undefined}
-              topicLabel={active?.topicName || active?.prefTopicName || (((active?.subjectName || (active?.subjectId ? '' : '数学')) || '数学') === '英語' ? '仮定法' : '確率')}
-            />
+            <div className="h-full flex flex-col xl:flex-row gap-4">
+              <div className="flex-1 min-w-0">
+                <SparChatbot
+                  messages={active?.messages ?? []}
+                  isLoading={sending}
+                  hideInput={active?.status === 'ended'}
+                  inputDisabled={sending}
+                  onSendMessage={(text) => { handleSend(text); }}
+                  subjectLabel={active?.subjectName || ((active?.subjectId ? undefined : '数学')) || undefined}
+                  topicLabel={active?.topicName || active?.prefTopicName || (((active?.subjectName || (active?.subjectId ? '' : '数学')) || '数学') === '英語' ? '仮定法' : '確率')}
+                />
+              </div>
+              <div className="w-full xl:w-80 flex-shrink-0">
+                <ChatTagPanel
+                  tagTypes={tagTypes}
+                  tags={activeChatTags}
+                  availableTags={availableTagOptions}
+                  masteryMap={tagMasteryMap}
+                  loading={tagPanelLoading}
+                  busy={tagBusy}
+                  error={tagError}
+                  onAddTag={(tagId) => attachTagToActive(tagId)}
+                  onRemoveTag={(tagId) => detachTagFromActive(tagId)}
+                  onUpdateMastery={(tagId, score) => updateTagMasteryScore(tagId, score)}
+                />
+              </div>
+            </div>
           )}
         </main>
       </div>

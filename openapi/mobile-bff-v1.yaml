@@ -28,6 +28,8 @@ tags:
     description: Device token registration for push notifications.
   - name: Billing
     description: In-app purchase receipt verification and subscription sync.
+  - name: Tagging
+    description: Misconception tagging, mastery tracking, and related utilities.
 components:
   securitySchemes:
     bearerAuth:
@@ -40,6 +42,14 @@ components:
       name: id
       required: true
       description: Chat session identifier (UUID string).
+      schema:
+        type: string
+        format: uuid
+    TagIdParam:
+      in: path
+      name: tagId
+      required: true
+      description: Tag identifier (UUID string).
       schema:
         type: string
         format: uuid
@@ -190,6 +200,7 @@ components:
         - title
         - status
         - updatedAt
+        - createdAt
       properties:
         id:
           type: string
@@ -201,12 +212,17 @@ components:
           enum:
             - in_progress
             - ended
-        subject:
+        subjectId:
           type: string
+          format: uuid
           nullable: true
-        theme:
+        topicId:
           type: string
+          format: uuid
           nullable: true
+        createdAt:
+          type: string
+          format: date-time
         updatedAt:
           type: string
           format: date-time
@@ -227,17 +243,30 @@ components:
       properties:
         title:
           type: string
-        subject:
+        subjectId:
           type: string
-        theme:
+          format: uuid
+        topicId:
           type: string
+          format: uuid
     UpdateChatRequest:
       type: object
-      required:
-        - title
       properties:
         title:
           type: string
+        status:
+          type: string
+          enum:
+            - in_progress
+            - ended
+        subjectId:
+          type: string
+          format: uuid
+          nullable: true
+        topicId:
+          type: string
+          format: uuid
+          nullable: true
     Message:
       type: object
       required:
@@ -269,6 +298,167 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Message'
+    TagType:
+      type: object
+      required:
+        - id
+        - code
+        - label
+      properties:
+        id:
+          type: integer
+          format: int32
+          minimum: 0
+        code:
+          type: string
+        label:
+          type: string
+    TagTypeListResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TagType'
+    TagSummary:
+      type: object
+      required:
+        - id
+        - name
+        - tagTypeId
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        subjectId:
+          type: string
+          format: uuid
+          nullable: true
+        topicId:
+          type: string
+          format: uuid
+          nullable: true
+        tagTypeId:
+          type: integer
+          format: int32
+    TagListResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TagSummary'
+    ChatTag:
+      type: object
+      required:
+        - tagId
+        - assignedBy
+        - confidence
+        - createdAt
+      properties:
+        tagId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          nullable: true
+        tagTypeId:
+          type: integer
+          format: int32
+          nullable: true
+        assignedBy:
+          type: string
+          enum:
+            - ai
+            - user
+            - system
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        createdAt:
+          type: string
+          format: date-time
+    ChatTagListResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatTag'
+    ChatTagUpsertRequest:
+      type: object
+      required:
+        - tagId
+      properties:
+        tagId:
+          type: string
+          format: uuid
+        assignedBy:
+          type: string
+          enum:
+            - ai
+            - user
+            - system
+          default: ai
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          default: 0
+    TagMasteryItem:
+      type: object
+      required:
+        - tagId
+        - masteryScore
+      properties:
+        tagId:
+          type: string
+          format: uuid
+        masteryScore:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        lastAssessedAt:
+          type: string
+          format: date-time
+          nullable: true
+    TagMasteryListResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TagMasteryItem'
+    TagMasteryUpdateRequest:
+      type: object
+      required:
+        - masteryScore
+      properties:
+        masteryScore:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        assessedAt:
+          type: string
+          format: date-time
     ChatMessageInput:
       type: object
       required:
@@ -295,12 +485,19 @@ components:
           type: string
         theme:
           type: string
+        description:
+          type: string
         clientSessionId:
           type: string
         history:
           type: array
           items:
             $ref: '#/components/schemas/ChatMessageInput'
+        tags:
+          type: array
+          items:
+            type: string
+            format: uuid
     ChatResult:
       type: object
       required:
@@ -590,6 +787,172 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MessagesResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/v1/tag-types:
+    get:
+      tags: [Tagging]
+      operationId: listTagTypes
+      security:
+        - bearerAuth: []
+      summary: Retrieve all tag categories available to clients.
+      responses:
+        '200':
+          description: Tag type list payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagTypeListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/v1/tags:
+    get:
+      tags: [Tagging]
+      operationId: listTags
+      security:
+        - bearerAuth: []
+      summary: List tags filtered by subject, topic, or tag type.
+      parameters:
+        - in: query
+          name: subjectId
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: topicId
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: tagTypeId
+          schema:
+            type: integer
+            format: int32
+      responses:
+        '200':
+          description: Tag list payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/v1/chats/{id}/tags:
+    get:
+      tags: [Tagging]
+      operationId: listChatTags
+      security:
+        - bearerAuth: []
+      summary: Retrieve tags currently attached to a chat.
+      parameters:
+        - $ref: '#/components/parameters/ChatIdParam'
+      responses:
+        '200':
+          description: Chat tag list payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatTagListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags: [Tagging]
+      operationId: upsertChatTag
+      security:
+        - bearerAuth: []
+      summary: Attach or update a tag on the specified chat.
+      parameters:
+        - $ref: '#/components/parameters/ChatIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatTagUpsertRequest'
+      responses:
+        '204':
+          description: Tag attached.
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/v1/chats/{id}/tags/{tagId}:
+    delete:
+      tags: [Tagging]
+      operationId: removeChatTag
+      security:
+        - bearerAuth: []
+      summary: Remove a tag from the specified chat.
+      parameters:
+        - $ref: '#/components/parameters/ChatIdParam'
+        - $ref: '#/components/parameters/TagIdParam'
+      responses:
+        '204':
+          description: Tag removed.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/v1/tag-mastery:
+    get:
+      tags: [Tagging]
+      operationId: listTagMastery
+      security:
+        - bearerAuth: []
+      summary: Retrieve mastery scores for tags associated with the user.
+      responses:
+        '200':
+          description: Tag mastery list payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagMasteryListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/v1/tags/{tagId}/mastery:
+    post:
+      tags: [Tagging]
+      operationId: updateTagMastery
+      security:
+        - bearerAuth: []
+      summary: Update mastery score for a specific tag.
+      parameters:
+        - $ref: '#/components/parameters/TagIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagMasteryUpdateRequest'
+      responses:
+        '200':
+          description: Updated mastery entry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagMasteryItem'
+        '400':
+          $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '404':

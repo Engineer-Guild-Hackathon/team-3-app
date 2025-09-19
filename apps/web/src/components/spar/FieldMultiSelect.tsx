@@ -4,7 +4,9 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { endpoints } from '@/lib/api/endpoints';
 import { apiFetchJson } from '@/lib/http';
+import { useAppJwt } from '@/components/providers/AppJwtProvider';
 
 type Props = {
   selectedFields: string[];
@@ -17,18 +19,20 @@ type Field = { id: string; name: string };
 
 export default function FieldMultiSelect({ selectedFields, onFieldsChange, subject, disabled = false }: Props) {
   const [available, setAvailable] = useState<Field[]>([]);
+  const { ready: appJwtReady } = useAppJwt();
   useEffect(() => {
+    if (!appJwtReady) return;
     let aborted = false;
     const run = async () => {
       if (!subject) { setAvailable([]); return; }
       try {
-        const data = await apiFetchJson<{ result?: { items?: Field[] } }>(`/api/subjects/${subject}/topics`);
-        if (!aborted) setAvailable(data.result?.items ?? []);
+        const data = await apiFetchJson<{ items?: Field[] }>(endpoints.topicsBySubject(subject));
+        if (!aborted) setAvailable(data.items ?? []);
       } catch {}
     };
     run();
     return () => { aborted = true; };
-  }, [subject]);
+  }, [subject, appJwtReady]);
   const toggle = (id: string) => {
     if (disabled) return;
     onFieldsChange(selectedFields.includes(id) ? selectedFields.filter(x=>x!==id) : [...selectedFields, id]);

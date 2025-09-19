@@ -1,5 +1,6 @@
 // 教科/トピックの名称解決ヘルパー（日本語コメント）
 
+import { endpoints } from "@/lib/api/endpoints";
 import { apiFetchJson, ApiClient } from "@/lib/http";
 
 /**
@@ -9,8 +10,8 @@ export async function getSubjectName(subjectId?: string, client?: ApiClient): Pr
   if (!subjectId) return undefined;
   try {
     const exec = client ? createFetch(client) : apiFetchJson;
-    const data = await exec<{ result?: { items?: Array<{ id: string; name: string }> } }>("/api/subjects");
-    const items = (data?.result?.items ?? []) as Array<{ id: string; name: string }>;
+    const data = await exec<{ items?: Array<{ id: string; name: string }> }>(endpoints.subjects());
+    const items = (data?.items ?? []) as Array<{ id: string; name: string }>;
     return items.find((x) => x.id === subjectId)?.name;
   } catch {
     return undefined;
@@ -24,8 +25,8 @@ export async function getTopicName(subjectId?: string, topicId?: string, client?
   if (!subjectId || !topicId) return undefined;
   try {
     const exec = client ? createFetch(client) : apiFetchJson;
-    const data = await exec<{ result?: { items?: Array<{ id: string; name: string }> } }>(`/api/subjects/${subjectId}/topics`);
-    const items = (data?.result?.items ?? []) as Array<{ id: string; name: string }>;
+    const data = await exec<{ items?: Array<{ id: string; name: string }> }>(endpoints.topicsBySubject(subjectId));
+    const items = (data?.items ?? []) as Array<{ id: string; name: string }>;
     return items.find((x) => x.id === topicId)?.name;
   } catch {
     return undefined;

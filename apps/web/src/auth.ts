@@ -5,6 +5,8 @@
 import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 
+import { resolveUserIdByEmail } from "@/lib/auth/user";
+
 // 開発環境では NEXTAUTH_SECRET が未設定でも動作させるためのフォールバック（要確認）
 // 本番（production）では .env/Key Vault で NEXTAUTH_SECRET を必ず設定してください。
 const devFallbackSecret =
@@ -20,6 +22,10 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   );
 }
 
+function isProbablyUuid(value: unknown): boolean {
+  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   secret: process.env.NEXTAUTH_SECRET ?? devFallbackSecret,
@@ -29,6 +35,29 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
   },
   callbacks: {
+    async jwt({ token, account, profile, user }) {
+      // いずれかのソースからメールアドレスを特定し、常にアプリ内 UUID を sub に設定する
+      const emailFromToken = typeof token.email === "string" ? token.email : undefined;
+      const emailFromProfile = typeof (profile as any)?.email === "string" ? (profile as any).email : undefined;
+      const emailFromUser = typeof (user as any)?.email === "string" ? (user as any).email : undefined;
+      const displayName =
+        typeof (profile as any)?.name === "string"
+          ? (profile as any).name
+          : typeof (user as any)?.name === "string"
+            ? (user as any).name
+            : undefined;
+
+      const resolvedEmail = emailFromToken ?? emailFromProfile ?? emailFromUser;
+      const needsResolution = account != null || typeof token.sub !== 'string' || !isProbablyUuid(token.sub);
+
+      if (resolvedEmail && needsResolution) {
+        const userId = await resolveUserIdByEmail(resolvedEmail, displayName);
+        if (userId) {
+          token.sub = userId;
+        }
+      }
+      return token;
+    },
     async signIn({ user, profile }) {
       // 1) 個別メール許可（カンマ区切り）。設定がある場合は最優先で適用
       const allowedEmails = (process.env.ALLOWED_EMAILS || "")

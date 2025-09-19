@@ -4,7 +4,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, BookOpen } from 'lucide-react';
+import { endpoints } from '@/lib/api/endpoints';
 import { apiFetchJson } from '@/lib/http';
+import { useAppJwt } from '@/components/providers/AppJwtProvider';
 
 type Props = { value: string; onChange: (v: string) => void; disabled?: boolean };
 
@@ -15,18 +17,20 @@ export default function SubjectDropdown({ value, onChange, disabled = false }: P
   const [items, setItems] = useState<Subject[]>([]);
   const ref = useRef<HTMLDivElement>(null);
   const selected = items.find(s => s.id === value);
+  const { ready: appJwtReady } = useAppJwt();
 
   useEffect(() => {
+    if (!appJwtReady) return;
     let aborted = false;
     const run = async () => {
       try {
-        const data = await apiFetchJson<{ result?: { items?: Subject[] } }>("/api/subjects");
-        if (!aborted) setItems(data.result?.items ?? []);
+        const data = await apiFetchJson<{ items?: Subject[] }>(endpoints.subjects());
+        if (!aborted) setItems(data.items ?? []);
       } catch {}
     };
     run();
     return () => { aborted = true; };
-  }, []);
+  }, [appJwtReady]);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setIsOpen(false); };

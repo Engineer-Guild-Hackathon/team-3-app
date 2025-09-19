@@ -1,6 +1,7 @@
 // フロントエンド用の軽量HTTPユーティリティ（日本語コメント）
 
 import { ApiClient, ApiClientOptions, ApiClientError } from "@/lib/api/client";
+import { getValidAccessToken, invalidateStoredTokens } from "@/lib/auth/web-appjwt";
 
 export type { ApiClientOptions, ApiClientError };
 export { ApiClient };
@@ -32,23 +33,58 @@ export function createApiFetchJson(client: ApiClient) {
  */
 export async function apiFetchJson<T = any>(url: string, init?: RequestInit): Promise<T> {
   const target = resolveUrlWithBase(url);
-  const res = await fetch(target, init);
-  if (res.status === 401) {
-    browserUnauthorizedHandler();
-    const err: any = new Error("Unauthorized");
-    err.status = 401;
-    throw err;
+  const needsBearer = shouldAttachBearer(target);
+
+  let attempt = 0;
+  let lastError: any = null;
+
+  while (attempt < 2) {
+    const headers = new Headers(init?.headers ?? {});
+    let tokenAttached = false;
+
+    if (needsBearer) {
+      try {
+        const token = await getValidAccessToken(attempt > 0);
+        if (token) {
+          headers.set('Authorization', `Bearer ${token}`);
+          tokenAttached = true;
+        }
+      } catch (error) {
+        console.warn('Failed to prepare web access token', error);
+      }
+    }
+
+    const res = await fetch(target, { ...init, headers });
+    let data: any = {};
+    try {
+      data = await res.json();
+    } catch {}
+
+    if (res.status === 401 && tokenAttached) {
+      invalidateStoredTokens();
+      attempt += 1;
+      lastError = new Error(String(data?.error ?? 'Unauthorized'));
+      continue;
+    }
+
+    if (res.status === 401) {
+      browserUnauthorizedHandler();
+      const err: any = new Error('Unauthorized');
+      err.status = 401;
+      throw err;
+    }
+
+    if (!res.ok || data?.ok === false) {
+      const err: any = new Error(String(data?.error ?? `HTTP ${res.status}`));
+      err.status = res.status;
+      throw err;
+    }
+
+    return data as T;
   }
-  let data: any = {};
-  try {
-    data = await res.json();
-  } catch {}
-  if (!res.ok || data?.ok === false) {
-    const err: any = new Error(String(data?.error ?? `HTTP ${res.status}`));
-    err.status = res.status;
-    throw err;
-  }
-  return data as T;
+
+  if (lastError) throw lastError;
+  return {} as T;
 }
 
 function normalizeBase(raw: string): { baseUrl: string | null; isAbsolute: boolean } {
@@ -85,3 +121,11 @@ function resolveUrlWithBase(url: string): string {
   return `${prefix}/${url}`;
 }
 
+function shouldAttachBearer(url: string): boolean {
+  try {
+    const parsed = new URL(url, typeof window === 'undefined' ? 'http://localhost' : window.location.origin);
+    return parsed.pathname.startsWith('/api/v1/');
+  } catch {
+    return url.startsWith('/api/v1/');
+  }
+}

@@ -11,15 +11,27 @@ export type CorsContext = {
 };
 
 const allowedOrigins = loadAllowedOriginsOnce();
+const isProd = false;
 
 export function createCorsContext(request: Request): CorsContext {
   const originHeader = request.headers.get('origin');
+  const requestUrl = new URL(request.url);
+  const requestOrigin = `${requestUrl.protocol}//${requestUrl.host}`;
+  const hostHeader = request.headers.get('host');
   if (!originHeader) {
     return { origin: null, isAllowed: true, hasOriginHeader: false };
   }
-  const allowed = isOriginAllowed(originHeader, allowedOrigins);
+  const normalizedOrigin = normalizeOrigin(originHeader);
+  const derivedOrigins: string[] = [normalizeOrigin(requestOrigin) ?? ''];
+  if (hostHeader) {
+    const inferred = normalizeOrigin(`${requestUrl.protocol}//${hostHeader}`);
+    if (inferred) derivedOrigins.push(inferred);
+  }
+  const isSameOrigin = derivedOrigins.filter(Boolean).includes(normalizedOrigin ?? '');
+  const allowedListCheck = normalizedOrigin ? isOriginAllowed(normalizedOrigin, allowedOrigins) : false;
+  const allowed = (!isProd && normalizedOrigin != null) || allowedListCheck || isSameOrigin;
   return {
-    origin: allowed ? originHeader : null,
+    origin: allowed && normalizedOrigin ? originHeader : null,
     isAllowed: allowed,
     hasOriginHeader: true,
   };

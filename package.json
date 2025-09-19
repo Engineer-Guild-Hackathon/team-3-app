@@ -19,6 +19,7 @@
     "test": "vitest"
   },
   "devDependencies": {
+    "openapi-typescript": "^7.9.1",
     "vitest": "^3.2.4"
   }
 }
