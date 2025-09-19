@@ -9,7 +9,9 @@ import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import Chat from './screens/Chat';
 import Home from './screens/Home';
 import LoginScreen from './screens/Login';
+import Setting from './screens/Setting';
 import { ChatStoreProvider } from './contexts/chatStore';
+import { SubjectStoreProvider } from './contexts/subjectStore';
 import { AuthProvider, useAuth } from './contexts/auth';
 import type { RootStackParamList } from './navigation/types';
 
@@ -33,23 +35,29 @@ const AppContent = () => {
   }
 
   return (
-    <ChatStoreProvider>
-      <NavigationContainer>
-        <Stack.Navigator
-          initialRouteName="Home"
-          screenOptions={{ headerShown: false }}
-        >
-          <Stack.Screen
-            name="Home"
-            component={Home}
-          />
-          <Stack.Screen
-            name="Chat"
-            component={Chat}
-          />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </ChatStoreProvider>
+    <SubjectStoreProvider>
+      <ChatStoreProvider>
+        <NavigationContainer>
+          <Stack.Navigator
+            initialRouteName="Home"
+            screenOptions={{ headerShown: false }}
+          >
+            <Stack.Screen
+              name="Home"
+              component={Home}
+            />
+            <Stack.Screen
+              name="Chat"
+              component={Chat}
+            />
+            <Stack.Screen
+              name="Settings"
+              component={Setting}
+            />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </ChatStoreProvider>
+    </SubjectStoreProvider>
   );
 };
 

@@ -60,6 +60,10 @@ const Home = ({ navigation }: HomeScreenProps) => {
     logout();
   }, [logout]);
 
+  const handleNavigateSettings = React.useCallback(() => {
+    navigation.navigate("Settings");
+  }, [navigation]);
+
   const userName = React.useMemo(() => {
     if (profile?.displayName && profile.displayName.trim().length > 0) {
       return profile.displayName;
@@ -85,6 +89,7 @@ const Home = ({ navigation }: HomeScreenProps) => {
       }
       drawerWidth={320}
       onCreateNewChat={handleCreateNewChat}
+      onNavigateSettings={handleNavigateSettings}
     >
       <ScrollView
         style={styles.scroll}

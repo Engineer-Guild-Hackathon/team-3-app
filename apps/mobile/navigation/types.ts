@@ -4,6 +4,7 @@ import type { RouteProp } from "@react-navigation/native";
 export type RootStackParamList = {
   Home: undefined;
   Chat: { threadId?: string; createNew?: boolean } | undefined;
+  Settings: undefined;
 };
 
 export type RootStackNavigationProp<T extends keyof RootStackParamList> =

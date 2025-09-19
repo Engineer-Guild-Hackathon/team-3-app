@@ -31,6 +31,8 @@ export type PageShellProps = {
   drawerWidth?: number;
   drawerTransitionDuration?: number;
   onCreateNewChat?: () => void;
+  onNavigateHome?: () => void;
+  onNavigateSettings?: () => void;
 };
 
 const resolveButton = (
@@ -56,9 +58,15 @@ const resolveLogo = (
   return { ...fallback, ...logo } as HeaderLogoConfig;
 };
 
+type RightActionHandlers = {
+  onNavigateHome?: () => void;
+  onNavigateSettings?: () => void;
+};
+
 const ensureRightAction = (
   actions: HeaderButtonConfig[] | undefined,
   variant: PageShellRightAction,
+  handlers: RightActionHandlers,
 ): HeaderButtonConfig[] => {
   const isHome = variant === "home";
   const targetIcon = isHome ? HomeIcon : SettingIcon;
@@ -66,6 +74,7 @@ const ensureRightAction = (
   const targetActionId = isHome
     ? HEADER_ACTION_IDS.navigateHome
     : HEADER_ACTION_IDS.navigateSettings;
+  const targetHandler = isHome ? handlers.onNavigateHome : handlers.onNavigateSettings;
 
   if (!actions || actions.length === 0) {
     return [
@@ -74,6 +83,11 @@ const ensureRightAction = (
         Icon: targetIcon,
         label: targetLabel,
         accessibilityLabel: targetLabel,
+        onPress: targetHandler
+          ? (_event: GestureResponderEvent) => {
+              targetHandler();
+            }
+          : undefined,
       },
     ];
   }
@@ -82,6 +96,7 @@ const ensureRightAction = (
   const targetIndex = nextActions.findIndex((action) => action.actionId === targetActionId);
   const updateIndex = targetIndex >= 0 ? targetIndex : nextActions.length - 1;
   const baseAction = nextActions[updateIndex] ?? {};
+  const originalOnPress = baseAction.onPress;
 
   nextActions[updateIndex] = {
     ...baseAction,
@@ -89,6 +104,12 @@ const ensureRightAction = (
     Icon: targetIcon,
     label: baseAction.label ?? targetLabel,
     accessibilityLabel: baseAction.accessibilityLabel ?? targetLabel,
+    onPress: targetHandler
+      ? (event: GestureResponderEvent) => {
+          targetHandler();
+          originalOnPress?.(event);
+        }
+      : originalOnPress,
   } as HeaderButtonConfig;
 
   return nextActions;
@@ -166,10 +187,15 @@ const buildHeaderConfig = (
   config: HeaderConfig | undefined,
   variant: PageShellRightAction,
   onCreateNewChat?: () => void,
+  onNavigateHome?: () => void,
+  onNavigateSettings?: () => void,
 ): HeaderConfig => {
   const base = config ?? defaultHeaderConfig;
   const baseActions = config?.actions ?? base.actions;
-  const actionsWithRight = ensureRightAction(baseActions, variant);
+  const actionsWithRight = ensureRightAction(baseActions, variant, {
+    onNavigateHome,
+    onNavigateSettings,
+  });
   const actionsWithCreate = attachCreateAction(actionsWithRight, onCreateNewChat);
 
   return {
@@ -190,6 +216,8 @@ const PageShell = ({
   drawerWidth = 320,
   drawerTransitionDuration = 220,
   onCreateNewChat,
+  onNavigateHome,
+  onNavigateSettings,
 }: PageShellProps) => {
   const [isDrawerOpen, setIsDrawerOpen] = React.useState(false);
   const drawerAnim = React.useRef(new Animated.Value(0));
@@ -213,8 +241,15 @@ const PageShell = ({
   }, [closeDrawer, onCreateNewChat]);
 
   const resolvedHeaderConfig = React.useMemo(
-    () => buildHeaderConfig(headerConfig, rightActionVariant, createHandler),
-    [createHandler, headerConfig, rightActionVariant],
+    () =>
+      buildHeaderConfig(
+        headerConfig,
+        rightActionVariant,
+        createHandler,
+        onNavigateHome,
+        onNavigateSettings,
+      ),
+    [createHandler, headerConfig, onNavigateHome, onNavigateSettings, rightActionVariant],
   );
 
   const enhancedDrawer = React.useMemo(() => {
