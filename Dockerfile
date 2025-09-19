@@ -48,4 +48,4 @@ COPY --from=builder /app/drizzle ./apps/web/drizzle
 COPY --from=builder /app/scripts ./apps/web/scripts
 WORKDIR /app/apps/web
 EXPOSE 3000
-CMD ["sh","-c","node ./scripts/migrate.mjs || echo 'migration failed' && node ./server.js"]
+CMD ["node","server.js"]
