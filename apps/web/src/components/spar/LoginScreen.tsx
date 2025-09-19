@@ -69,6 +69,7 @@ export default function LoginScreen({ onGoogleLogin, disabled = false, errorText
                 height={320}
                 className="w-72 h-72 sm:w-80 sm:h-80 mx-auto object-contain"
                 onError={() => handleLogoError()}
+                unoptimized
                 priority
               />
             ) : (

@@ -15,8 +15,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Team3 Chat UI",
+  title: {
+    default: "SPAR",
+    template: "%s | SPAR",
+  },
   description: "ChatGPT風のUIデモ",
+  icons: {
+    icon: "/SPAR_icon.png",
+    shortcut: "/SPAR_icon.png",
+    apple: "/SPAR_icon.png",
+  },
+  applicationName: "SPAR",
 };
 
 export default function RootLayout({
