@@ -1,4 +1,4 @@
-import { getAOAI } from "./openai";
+import { getAOAI, runPromptShield, type PromptShieldEvaluation } from "./openai";
 import { getLogger } from "./logger";
 import { isRunChatOutput, isAnswerWithStatus } from "./schemas";
 import type {
@@ -6,11 +6,38 @@ import type {
   RunChatOptions,
   RunChatInput,
   RunChatOutput,
-  ChatTriState,
+  ChatStates,
   ConversationTurn,
 } from "@/types/llm";
 import { getRunChatSystemPrompt } from "./prompts";
 import { turnsToMessages } from "@/lib/chat/mapping";
+
+function sanitizeHistory(turns: ConversationTurn[]): ConversationTurn[] {
+  if (!turns.length) return turns;
+  const cloned = turns.map((turn) => ({ ...turn }));
+  for (let i = 0; i < cloned.length; i++) {
+    const turn = cloned[i];
+    if (turn.assistantStatus === 999) {
+      cloned[i] = {
+        ...turn,
+        assistant: "",
+        assistantStatus: undefined,
+      };
+      if (i > 0) {
+        cloned[i - 1] = {
+          ...cloned[i - 1],
+          user: "",
+          userStatus: undefined,
+        };
+      }
+    }
+  }
+  return cloned.filter((turn) => {
+    const hasAssistant = typeof turn.assistant === "string" && turn.assistant.trim().length > 0;
+    const hasUser = typeof turn.user === "string" && turn.user.trim().length > 0;
+    return hasAssistant || hasUser;
+  });
+}
 
 // ------------------------------
 // ヘルパー（共通処理）
@@ -44,8 +71,16 @@ export async function runChat(input: RunChatInput, opts: Partial<RunChatOptions>
   // subject/theme/description をテンプレへ注入した system 指示を使用
   const sys = await getRunChatSystemPrompt(input.subject, input.theme, input.description ?? "");
   const turns: ConversationTurn[] = input.history ?? [];
-  const messages: LlmMessage[] = [{ role: "system", content: sys }, ...turnsToMessages(turns)];
-  log.debug({ msg: "runChat:history_mapped", turns: turns.length, messages: messages.length });
+  const rawMessages: LlmMessage[] = [{ role: "system", content: sys }, ...turnsToMessages(turns)];
+  const sanitizedTurns = sanitizeHistory(turns);
+  const llmMessages: LlmMessage[] = [{ role: "system", content: sys }, ...turnsToMessages(sanitizedTurns)];
+  log.debug({
+    msg: "runChat:history_mapped",
+    turns: turns.length,
+    messages: rawMessages.length,
+    sanitizedTurns: sanitizedTurns.length,
+    sanitizedMessages: llmMessages.length,
+  });
 
   // JSON Schema で構造化出力を強制（answer/status のみ）
   const response_format = {
@@ -57,7 +92,7 @@ export async function runChat(input: RunChatInput, opts: Partial<RunChatOptions>
         additionalProperties: false,
         properties: {
           answer: { type: "string" },
-          status: { type: "integer", enum: [-1, 0, 1] },
+          status: { type: "integer", enum: [-1, 0, 1, 999] },
         },
         required: ["answer", "status"],
       },
@@ -65,8 +100,55 @@ export async function runChat(input: RunChatInput, opts: Partial<RunChatOptions>
     },
   } as const;
 
+  let shield: PromptShieldEvaluation;
+  try {
+    shield = await runPromptShield(llmMessages);
+    log.debug({
+      msg: "runChat:prompt_shield_checked",
+      sessionId,
+      requestId,
+      chatId: input.chatId,
+      shouldBlock: shield.shouldBlock,
+      attackDetected: shield.attackDetected,
+      bypassDetected: shield.bypassDetected,
+      attackType: shield.attackType,
+      confidence: shield.confidence,
+      detectors: shield.detectors,
+    });
+  } catch (err) {
+    log.error({
+      msg: "runChat:prompt_shield_error",
+      sessionId,
+      requestId,
+      chatId: input.chatId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return {
+      chatId: input.chatId,
+      answer: "申し訳ありません。安全チェックに失敗しました。時間を置いて再度お試しください。",
+      status: -1,
+    };
+  }
+
+  if (shield.shouldBlock) {
+    log.warn({
+      msg: "runChat:prompt_shield_blocked",
+      sessionId,
+      requestId,
+      chatId: input.chatId,
+      attackDetected: shield.attackDetected,
+      bypassDetected: shield.bypassDetected,
+      attackType: shield.attackType,
+      confidence: shield.confidence,
+      detectors: shield.detectors,
+    });
+    const safeAnswer =
+      "ごめんなさい。安全確認が必要な内容だったので、言い方を少し変えてもう一度送ってくれると助かります。";
+    return { chatId: input.chatId, answer: safeAnswer, status: 999 };
+  }
+
   const t0 = Date.now();
-  const resp = await getAOAI().chat.completions.create({ model, messages, response_format } as any);
+  const resp = await getAOAI().chat.completions.create({ model, messages: llmMessages, response_format } as any);
   const dt = Date.now() - t0;
 
   const raw = resp.choices?.[0]?.message?.content ?? "";
@@ -91,7 +173,7 @@ export async function runChat(input: RunChatInput, opts: Partial<RunChatOptions>
   } else {
     // フォールバック：スキーマ外の応答やパース失敗時
     const fallbackAnswer = String(raw || "").trim();
-    const fallbackStatus: ChatTriState = fallbackAnswer ? 0 : 0;
+    const fallbackStatus: ChatStates = fallbackAnswer ? 0 : 0;
     out = { chatId: input.chatId, answer: fallbackAnswer, status: fallbackStatus };
   }
 

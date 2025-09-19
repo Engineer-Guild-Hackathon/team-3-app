@@ -23,13 +23,15 @@ export type RunChatOptions = JsonModeOptions & {
   requestId?: string; // 相関ID（API から受け取る）
 };
 
-export type ChatTriState = -1 | 0 | 1;
+export type ChatStates = -1 | 0 | 1 | 999;
 
 export type ConversationTurn = {
   // assistant: LLM（アシスタント）が送信したメッセージ
   assistant: string;
+  assistantStatus?: ChatStates;
   // user: ユーザーが送信したメッセージ
   user: string;
+  userStatus?: ChatStates;
 };
 
 export type RunChatInput = {
@@ -46,5 +48,5 @@ export type RunChatInput = {
 export type RunChatOutput = {
   chatId: number; // 入力と同じ chatId を返す
   answer: string; // LLM の出力文章
-  status: ChatTriState; // -1 | 0 | 1
+  status: ChatStates; // -1 | 0 | 1 | 999
 };

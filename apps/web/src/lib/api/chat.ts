@@ -1,7 +1,7 @@
 // チャット関連のAPIラッパ（日本語コメント）
 
 import { endpoints } from "@/lib/api/endpoints";
-import type { ChatTriState, RunChatInput, RunChatOutput } from "@/types/llm";
+import type { ChatStates, RunChatInput, RunChatOutput } from "@/types/llm";
 import { apiFetchJson, ApiClient } from "@/lib/http";
 
 export type ChatListItem = {
@@ -62,7 +62,7 @@ export async function deleteChat(id: string, client?: ApiClient) {
  */
 export async function runChat(payload: RunChatInput, client?: ApiClient): Promise<{ result: RunChatOutput; meta?: any }> {
   const exec = client ? createFetch(client) : apiFetchJson;
-  const data = await exec<{ chatId?: string; answer?: string; status?: ChatTriState; meta?: any }>(endpoints.chat(), {
+  const data = await exec<{ chatId?: string; answer?: string; status?: ChatStates; meta?: any }>(endpoints.chat(), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -70,7 +70,7 @@ export async function runChat(payload: RunChatInput, client?: ApiClient): Promis
   const result: RunChatOutput = {
     chatId: payload.chatId,
     answer: String(data.answer ?? ""),
-    status: (data.status ?? 0) as ChatTriState,
+    status: (data.status ?? 0) as ChatStates,
   };
   return { result, meta: data.meta };
 }
