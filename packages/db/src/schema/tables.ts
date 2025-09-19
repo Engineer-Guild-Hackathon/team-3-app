@@ -1,7 +1,7 @@
 // Drizzle ORM 用のテーブル定義集約
 // - Web/BFF/ジョブで共用するテーブルをここで定義する
 
-import { boolean, index, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, index, jsonb, pgTable, primaryKey, real, smallint, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 // users
@@ -27,13 +27,25 @@ export const topics = pgTable('topics', {
   uq: sql`UNIQUE (${t.subjectId.name}, ${t.name.name})`,
 }));
 
+// tag_types
+export const tagTypes = pgTable('tag_types', {
+  id: smallint('id').primaryKey().generatedAlwaysAsIdentity(),
+  code: text('code').notNull().unique(),
+  label: text('label').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // tags
 export const tags = pgTable('tags', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   subjectId: uuid('subject_id').notNull().references(() => subjects.id, { onDelete: 'cascade' }),
   topicId: uuid('topic_id').references(() => topics.id, { onDelete: 'set null' }),
+  tagTypeId: smallint('tag_type_id').notNull().references(() => tagTypes.id, { onDelete: 'restrict' }),
   name: text('name').notNull(),
   description: text('description'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   uq: sql`UNIQUE (${t.subjectId.name}, ${t.name.name})`,
 }));
@@ -69,10 +81,23 @@ export const chatTags = pgTable('chat_tags', {
   chatId: uuid('chat_id').notNull().references(() => chats.id, { onDelete: 'cascade' }),
   tagId: uuid('tag_id').notNull().references(() => tags.id, { onDelete: 'restrict' }),
   assignedBy: text('assigned_by').notNull().default('ai'),
+  confidence: real('confidence').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   pk: primaryKey({ columns: [t.chatId, t.tagId] }),
   assignedByCk: sql`CHECK (${t.assignedBy.name} IN ('ai','user','system'))`,
+}));
+
+// user_tag_mastery
+export const userTagMastery = pgTable('user_tag_mastery', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tagId: uuid('tag_id').notNull().references(() => tags.id, { onDelete: 'cascade' }),
+  masteryScore: real('mastery_score').notNull().default(0),
+  lastAssessedAt: timestamp('last_assessed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.userId, t.tagId] }),
 }));
 
 // user_settings

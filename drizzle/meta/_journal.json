@@ -57,6 +57,20 @@
       "when": 1758217200000,
       "tag": "0007_add_deleted_at_to_chats",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1758231571905,
+      "tag": "0008_tag_enhancements",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1758253782598,
+      "tag": "0009_seed_tag_types",
+      "breakpoints": true
     }
   ]
 }

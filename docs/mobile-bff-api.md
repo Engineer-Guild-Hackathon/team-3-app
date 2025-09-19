@@ -134,8 +134,102 @@
 - **備考**: 二度目以降は 404。復元 API を実装する場合は `deletedAt` を `null` に更新。
 
 ### `GET /api/v1/chats/{id}/messages`
-- **現在の状態**: OpenAPI のみに定義。実装は今後予定されており、チャット履歴をページング取得するために利用します。
-- **予定**: `limit` (1–1000)、`cursor`（タイムスタンプ + ID を想定）、`direction`（desc/asc）をサポート。同一ユーザーのチャットに限定し、タグ付け情報や再想起メタを含める可能性があります。
+- **Scope**: `chat:rw`
+- **用途**: チャット履歴をページング取得。詳細画面で過去メッセージを同期します。
+- **Query**
+  - `limit`…1〜1000（既定 100）。
+- **レスポンス**: `items[]` に `{ id, role, content, createdAt }` を返却。
+
+---
+
+## タグ
+
+### `GET /api/v1/tag-types`
+- **Scope**: `profile:read`
+- **用途**: タグ類型マスタを取得し、フィルタやバッジ表示を構成。
+- **レスポンス例**
+  ```json
+  {
+    "items": [
+      { "id": 1, "code": "definition", "label": "定義" },
+      { "id": 2, "code": "procedure", "label": "手順" }
+    ]
+  }
+  ```
+
+### `GET /api/v1/tags`
+- **Scope**: `chat:rw`
+- **用途**: タグ候補リストを取得。科目/トピック/タグ類型によるフィルタをサポート。
+- **Query**
+  - `subjectId`…UUID。省略時は全科目。
+  - `topicId`…UUID。指定時は `subjectId` と整合する必要あり。
+  - `tagTypeId`…smallint。タグ類型で絞り込み。
+- **レスポンス**: `items[]` に `{ id, name, description, subjectId, topicId, tagTypeId }`。
+
+### `GET /api/v1/chats/{id}/tags`
+- **Scope**: `chat:rw`
+- **用途**: チャットに付与されたタグ一覧と確信度を取得し、UI に表示。
+- **レスポンス例**
+  ```json
+  {
+    "items": [
+      {
+        "tagId": "9f21…",
+        "name": "ベイズの定理",
+        "tagTypeId": 1,
+        "assignedBy": "ai",
+        "confidence": 0.72,
+        "createdAt": "2025-09-12T12:02:00Z"
+      }
+    ]
+  }
+  ```
+
+### `POST /api/v1/chats/{id}/tags`
+- **Scope**: `chat:rw`
+- **用途**: チャットにタグを付与。AI 推定・ユーザー手動の双方に対応。
+- **Body**
+  ```json
+  {
+    "tagId": "9f21…",
+    "assignedBy": "user",
+    "confidence": 0.9
+  }
+  ```
+- **備考**: `assignedBy` は `ai` / `user` / `system`。`confidence` を省略した場合は 0.0。
+
+### `DELETE /api/v1/chats/{id}/tags/{tagId}`
+- **Scope**: `chat:rw`
+- **用途**: 付与済みタグを解除。
+- **レスポンス**: 204。
+
+### `GET /api/v1/tag-mastery`
+- **Scope**: `profile:read`
+- **用途**: ユーザーのタグ理解度一覧を取得。ダッシュボードや推奨学習に利用。
+- **レスポンス例**
+  ```json
+  {
+    "items": [
+      {
+        "tagId": "9f21…",
+        "masteryScore": 0.35,
+        "lastAssessedAt": "2025-09-12T12:10:00Z"
+      }
+    ]
+  }
+  ```
+
+### `POST /api/v1/tags/{id}/mastery`
+- **Scope**: `chat:rw`
+- **用途**: 自己評価や再想起結果に基づいて理解度を更新。
+- **Body**
+  ```json
+  {
+    "masteryScore": 0.6,
+    "assessedAt": "2025-09-18T09:00:00Z"
+  }
+  ```
+- **備考**: `masteryScore` は 0.0〜1.0。`assessedAt` 未指定時はサーバ時刻を使用。
 
 ### `POST /api/v1/chat`
 - **用途**: LLM を呼び出し、回答を取得。モバイルアプリのチャット画面から送信されるメッセージを処理します。
