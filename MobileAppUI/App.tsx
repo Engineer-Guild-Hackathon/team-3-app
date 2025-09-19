@@ -6,6 +6,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import Chat from "./screens/Chat";
 import Home from "./screens/Home";
+import { ChatStoreProvider } from "./contexts/chatStore";
 import type { RootStackParamList } from "./navigation/types";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -21,23 +22,25 @@ const App = () => {
 
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
-        <Stack.Navigator
-          initialRouteName="Home"
-          screenOptions={{ headerShown: false }}
-        >
-          <Stack.Screen
-            name="Home"
-            component={Home}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="Chat"
-            component={Chat}
-            options={{ headerShown: false }}
-          />
-        </Stack.Navigator>
-      </NavigationContainer>
+      <ChatStoreProvider>
+        <NavigationContainer>
+          <Stack.Navigator
+            initialRouteName="Home"
+            screenOptions={{ headerShown: false }}
+          >
+            <Stack.Screen
+              name="Home"
+              component={Home}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Chat"
+              component={Chat}
+              options={{ headerShown: false }}
+            />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </ChatStoreProvider>
     </SafeAreaProvider>
   );
 };

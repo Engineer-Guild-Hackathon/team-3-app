@@ -20,11 +20,13 @@ export type IconButtonProps = {
   Icon?: IconComponent;
   containerStyle?: StyleProp<ViewStyle>;
   labelStyle?: StyleProp<TextStyle>;
+  actionId?: string;
 } & Omit<PressableProps, "style">;
 
 const IconButton = React.forwardRef<React.ElementRef<typeof Pressable>, IconButtonProps>(
   (
     {
+      actionId: _actionId,
       label,
       Icon = HamburgerMenu,
       containerStyle,

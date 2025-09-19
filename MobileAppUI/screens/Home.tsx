@@ -7,22 +7,36 @@ import HistoryDrawer from "../components/HistoryDrawer";
 import HomeMainArea from "../components/HomeMainArea";
 import { StyleVariable } from "../GlobalStyles";
 import type { ChatHistoryEntry } from "../components/types";
-import { SAMPLE_THREADS } from "../data/sampleThreads";
 import type { RootStackParamList } from "../navigation/types";
 import { buildHistoryEntry } from "../utils/chatHistory";
+import { useChatStore } from "../contexts/chatStore";
 
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-
-const SAMPLE_HISTORY: ChatHistoryEntry[] = SAMPLE_THREADS.map((thread) =>
-  buildHistoryEntry(thread),
-);
 
 type HomeScreenProps = NativeStackScreenProps<RootStackParamList, "Home">;
 
 const Home = ({ navigation }: HomeScreenProps) => {
-  const [activeHistoryId, setActiveHistoryId] = React.useState<string>(
-    SAMPLE_HISTORY[0]?.id ?? "",
+  const { threads } = useChatStore();
+
+  const historyEntries = React.useMemo<ChatHistoryEntry[]>(
+    () => threads.map((thread) => buildHistoryEntry(thread)),
+    [threads],
   );
+
+  const [activeHistoryId, setActiveHistoryId] = React.useState<string>(
+    () => historyEntries[0]?.id ?? "",
+  );
+
+  React.useEffect(() => {
+    if (historyEntries.length === 0) {
+      setActiveHistoryId("");
+      return;
+    }
+    const exists = historyEntries.some((entry) => entry.id === activeHistoryId);
+    if (!exists) {
+      setActiveHistoryId(historyEntries[0]?.id ?? "");
+    }
+  }, [historyEntries, activeHistoryId]);
 
   const handleSelectHistory = React.useCallback(
     (entry: ChatHistoryEntry) => {
@@ -43,7 +57,7 @@ const Home = ({ navigation }: HomeScreenProps) => {
       contentStyle={styles.shellContent}
       drawer={
         <HistoryDrawer
-          entries={SAMPLE_HISTORY}
+          entries={historyEntries}
           activeId={activeHistoryId}
           onSelect={handleSelectHistory}
         />
@@ -58,7 +72,7 @@ const Home = ({ navigation }: HomeScreenProps) => {
         <View style={[styles.mainarea, styles.mainareaFlexBox]}>
           <View style={[styles.contentarea, styles.mainareaFlexBox]}>
             <HomeMainArea
-              historyEntries={SAMPLE_HISTORY}
+              historyEntries={historyEntries}
               activeHistoryId={activeHistoryId}
               onSelectHistory={handleSelectHistory}
             />

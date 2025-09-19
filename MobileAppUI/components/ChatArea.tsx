@@ -4,21 +4,17 @@ import { FlatList, ListRenderItem, StyleSheet, View } from "react-native";
 import { Gap, Padding } from "../GlobalStyles";
 import ChatBubble from "./ChatBubble";
 import type { ChatMessage } from "./types";
+import { getSampleChatMessages } from "../utils/sampleData";
 
 export type ChatAreaProps = {
   messages?: ChatMessage[];
 };
 
-const FALLBACK_MESSAGES: ChatMessage[] = [
-  { id: "m1", author: "assistant", text: "ご相談ありがとうございます。", status: -1, createdAt: "12:00" },
-  { id: "m2", author: "user", text: "レポートをまとめてください。", createdAt: "12:01" },
-  { id: "m3", author: "assistant", text: "承知しました。ポイントはどこでしょうか？", status: -1, createdAt: "12:02" },
-];
-
 const ChatArea = ({ messages = [] }: ChatAreaProps) => {
   const listRef = React.useRef<FlatList<ChatMessage>>(null);
 
-  const data = messages.length > 0 ? messages : FALLBACK_MESSAGES;
+  const fallbackMessages = React.useMemo(() => getSampleChatMessages(), []);
+  const data = messages.length > 0 ? messages : fallbackMessages;
 
   const lastMessageKey = React.useMemo(() => {
     if (data.length === 0) {

@@ -8,6 +8,7 @@ import {
   FontSize,
   StyleVariable,
 } from "../GlobalStyles";
+import { formatBubbleTimestamp } from "../utils/datetime";
 import type { ChatMessage } from "./types";
 
 export type ChatBubbleProps = {
@@ -16,19 +17,10 @@ export type ChatBubbleProps = {
 
 const ChatBubble = ({ message }: ChatBubbleProps) => {
   const isUser = message.author === "user";
-  const timestampLabel = React.useMemo(() => {
-    const parsed = new Date(message.createdAt);
-    if (Number.isNaN(parsed.getTime())) {
-      return message.createdAt;
-    }
-    return new Intl.DateTimeFormat("ja-JP", {
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(parsed);
-  }, [message.createdAt]);
+  const timestampLabel = React.useMemo(
+    () => formatBubbleTimestamp(message.createdAt),
+    [message.createdAt],
+  );
 
   return (
     <View style={[styles.container, isUser ? styles.containerRight : styles.containerLeft]}>

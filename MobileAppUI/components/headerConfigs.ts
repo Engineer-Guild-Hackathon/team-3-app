@@ -3,23 +3,27 @@ import MenuIcon from "../assets/Hamburger-Menu.svg";
 import HomeIcon from "../assets/Home.svg";
 import SettingIcon from "../assets/Setting.svg";
 
+import { HEADER_ACTION_IDS, HEADER_LABELS } from "./headerConstants";
 import type { HeaderConfig } from "./headerTypes";
 
 export const homeHeaderConfig: HeaderConfig = {
   menu: {
-    label: "履歴",
-    accessibilityLabel: "履歴",
+    actionId: HEADER_ACTION_IDS.menuHistory,
+    label: HEADER_LABELS.history,
+    accessibilityLabel: HEADER_LABELS.history,
     Icon: MenuIcon,
   },
   actions: [
     {
-      label: "新規",
-      accessibilityLabel: "新規",
+      actionId: HEADER_ACTION_IDS.createThread,
+      label: HEADER_LABELS.create,
+      accessibilityLabel: HEADER_LABELS.create,
       Icon: CreateIcon,
     },
     {
-      label: "設定",
-      accessibilityLabel: "設定",
+      actionId: HEADER_ACTION_IDS.navigateSettings,
+      label: HEADER_LABELS.settings,
+      accessibilityLabel: HEADER_LABELS.settings,
       Icon: SettingIcon,
     },
   ],
@@ -33,14 +37,16 @@ export const defaultHeaderConfig = homeHeaderConfig;
 
 export const chatHeaderConfig: HeaderConfig = {
   menu: {
-    label: "履歴",
-    accessibilityLabel: "履歴",
+    actionId: HEADER_ACTION_IDS.menuHistory,
+    label: HEADER_LABELS.history,
+    accessibilityLabel: HEADER_LABELS.history,
     Icon: MenuIcon,
   },
   actions: [
     {
-      label: "ホーム",
-      accessibilityLabel: "ホーム",
+      actionId: HEADER_ACTION_IDS.navigateHome,
+      label: HEADER_LABELS.home,
+      accessibilityLabel: HEADER_LABELS.home,
       Icon: HomeIcon,
     },
   ],

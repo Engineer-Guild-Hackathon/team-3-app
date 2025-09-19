@@ -16,6 +16,7 @@ import HomeIcon from "../assets/Home.svg";
 import SettingIcon from "../assets/Setting.svg";
 import { Color, StyleVariable } from "../GlobalStyles";
 import { defaultHeaderConfig } from "./headerConfigs";
+import { HEADER_ACTION_IDS, HEADER_LABELS } from "./headerConstants";
 import type { HeaderButtonConfig, HeaderConfig, HeaderLogoConfig } from "./headerTypes";
 
 export type PageShellRightAction = "settings" | "home";
@@ -59,12 +60,17 @@ const ensureRightAction = (
   actions: HeaderButtonConfig[] | undefined,
   variant: PageShellRightAction,
 ): HeaderButtonConfig[] => {
-  const targetIcon = variant === "home" ? HomeIcon : SettingIcon;
-  const targetLabel = variant === "home" ? "ホーム" : "設定";
+  const isHome = variant === "home";
+  const targetIcon = isHome ? HomeIcon : SettingIcon;
+  const targetLabel = isHome ? HEADER_LABELS.home : HEADER_LABELS.settings;
+  const targetActionId = isHome
+    ? HEADER_ACTION_IDS.navigateHome
+    : HEADER_ACTION_IDS.navigateSettings;
 
   if (!actions || actions.length === 0) {
     return [
       {
+        actionId: targetActionId,
         Icon: targetIcon,
         label: targetLabel,
         accessibilityLabel: targetLabel,
@@ -72,21 +78,28 @@ const ensureRightAction = (
     ];
   }
 
-  const nextActions = actions.slice(0, actions.length - 1).map((action) => ({ ...action }));
-  const lastAction = actions[actions.length - 1];
-  nextActions.push({
-    ...lastAction,
+  const nextActions = actions.map((action) => ({ ...action }));
+  const targetIndex = nextActions.findIndex((action) => action.actionId === targetActionId);
+  const updateIndex = targetIndex >= 0 ? targetIndex : nextActions.length - 1;
+  const baseAction = nextActions[updateIndex] ?? {};
+
+  nextActions[updateIndex] = {
+    ...baseAction,
+    actionId: targetActionId,
     Icon: targetIcon,
-    label: lastAction?.label ?? targetLabel,
-    accessibilityLabel: lastAction?.accessibilityLabel ?? targetLabel,
-  });
+    label: baseAction.label ?? targetLabel,
+    accessibilityLabel: baseAction.accessibilityLabel ?? targetLabel,
+  } as HeaderButtonConfig;
 
   return nextActions;
 };
 
-const CREATE_LABELS = ["新規", "新しい質問"];
+const CREATE_LABELS = [HEADER_LABELS.create, "新しい質問"];
 
 const isCreateAction = (action: HeaderButtonConfig): boolean => {
+  if (action.actionId === HEADER_ACTION_IDS.createThread) {
+    return true;
+  }
   const label = action.label ?? action.accessibilityLabel ?? "";
   return CREATE_LABELS.some((keyword) => label?.includes?.(keyword));
 };
@@ -114,9 +127,10 @@ const attachCreateAction = (
     return handler
       ? [
           {
+            actionId: HEADER_ACTION_IDS.createThread,
             Icon: CreateIcon,
-            label: "新規",
-            accessibilityLabel: "新規",
+            label: HEADER_LABELS.create,
+            accessibilityLabel: HEADER_LABELS.create,
             onPress: (_event: GestureResponderEvent) => {
               handler();
             },
@@ -135,9 +149,10 @@ const attachCreateAction = (
 
   if (!nextActions.some(isCreateAction)) {
     nextActions.unshift({
+      actionId: HEADER_ACTION_IDS.createThread,
       Icon: CreateIcon,
-      label: "新規",
-      accessibilityLabel: "新規",
+      label: HEADER_LABELS.create,
+      accessibilityLabel: HEADER_LABELS.create,
       onPress: (_event: GestureResponderEvent) => {
         handler();
       },

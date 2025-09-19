@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View } from "react-native";
 
 import HistoryItem from "./HistoryItem";
 import type { ChatHistoryEntry } from "./types";
+import { getSampleHistoryEntries } from "../utils/sampleData";
 
 export type HistoryListProps = {
   entries: ChatHistoryEntry[];
@@ -10,31 +11,9 @@ export type HistoryListProps = {
   onSelect?: (entry: ChatHistoryEntry) => void;
 };
 
-const FALLBACK_ENTRIES: ChatHistoryEntry[] = [
-  {
-    id: "1",
-    title: "最近の質問",
-    snippet: "チャットの流れを教えて",
-    timestamp: "12:30",
-    unread: true,
-    lastAssistantStatus: -1,
-  },
-  {
-    id: "2",
-    title: "AI 相談",
-    snippet: "分析レポートをまとめて",
-    timestamp: "12:08",
-  },
-  {
-    id: "3",
-    title: "設計レビュー",
-    snippet: "画面遷移について",
-    timestamp: "昨日",
-  },
-];
-
 const HistoryList = ({ entries, activeId, onSelect }: HistoryListProps) => {
-  const data = entries.length > 0 ? entries : FALLBACK_ENTRIES;
+  const fallbackEntries = React.useMemo(() => getSampleHistoryEntries(), []);
+  const data = entries.length > 0 ? entries : fallbackEntries;
 
   return (
     <ScrollView

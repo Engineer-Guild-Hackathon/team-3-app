@@ -7,22 +7,21 @@ import ChatMainArea from "../components/ChatMainArea";
 import HistoryDrawer from "../components/HistoryDrawer";
 import PageShell from "../components/PageShell";
 import { chatHeaderConfig } from "../components/headerConfigs";
+import { HEADER_ACTION_IDS } from "../components/headerConstants";
 import type { HeaderConfig } from "../components/headerTypes";
 import type { ChatHistoryEntry, ChatMessage, ChatThread } from "../components/types";
-import { SAMPLE_THREADS } from "../data/sampleThreads";
 import type { RootStackParamList } from "../navigation/types";
 import { buildHistoryEntry } from "../utils/chatHistory";
+import { nowAsIsoString } from "../utils/datetime";
+import { useChatStore } from "../contexts/chatStore";
 
 type ChatScreenProps = NativeStackScreenProps<RootStackParamList, "Chat">;
 
-const formatTime = (date: Date): string =>
-  Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit" }).format(date);
-
 const Chat = ({ navigation, route }: ChatScreenProps) => {
   const insets = useSafeAreaInsets();
-  const [threads, setThreads] = React.useState<ChatThread[]>(SAMPLE_THREADS);
+  const { threads, setThreads } = useChatStore();
   const [activeThreadId, setActiveThreadId] = React.useState<string>(
-    () => route.params?.threadId ?? SAMPLE_THREADS[0]?.id ?? "",
+    () => route.params?.threadId ?? threads[0]?.id ?? "",
   );
   const pendingReplies = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -71,11 +70,12 @@ const Chat = ({ navigation, route }: ChatScreenProps) => {
   const handleStartNewChat = React.useCallback(() => {
     const now = new Date();
     const newId = `thread-${now.getTime()}`;
+    const createdAt = now.toISOString();
     const greeting: ChatMessage = {
       id: `msg-${now.getTime()}`,
       author: "assistant",
       text: "こんにちは！今日はどのようなご相談でしょうか？",
-      createdAt: formatTime(now),
+      createdAt,
       status: -1 as const,
     };
 
@@ -100,11 +100,12 @@ const Chat = ({ navigation, route }: ChatScreenProps) => {
       }
 
       const now = new Date();
+      const createdAt = now.toISOString();
       const message: ChatMessage = {
         id: `msg-${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
         author: "user",
         text,
-        createdAt: formatTime(now),
+        createdAt,
       };
 
       const placeholderId = `pending-${now.getTime()}`;
@@ -112,7 +113,7 @@ const Chat = ({ navigation, route }: ChatScreenProps) => {
         id: placeholderId,
         author: "assistant",
         text: "考え中・・・",
-        createdAt: formatTime(now),
+        createdAt,
         pending: true,
         status: -1 as const,
       };
@@ -135,7 +136,7 @@ const Chat = ({ navigation, route }: ChatScreenProps) => {
       const responseText = `ご入力ありがとうございます。「${text}」について整理します。`;
 
       const timeoutId = setTimeout(() => {
-        const responseTime = formatTime(new Date());
+        const responseTime = nowAsIsoString();
         setThreads((prev) =>
           prev.map((thread) => {
             if (thread.id !== targetThreadId) {
@@ -165,8 +166,7 @@ const Chat = ({ navigation, route }: ChatScreenProps) => {
 
   const headerConfig = React.useMemo<HeaderConfig>(() => {
     const actions = (chatHeaderConfig.actions ?? []).map((action) => {
-      const label = action.label ?? action.accessibilityLabel;
-      if (label === "ホーム") {
+      if (action.actionId === HEADER_ACTION_IDS.navigateHome) {
         return {
           ...action,
           onPress: () => navigation.navigate("Home"),
