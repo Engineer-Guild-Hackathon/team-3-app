@@ -2,7 +2,7 @@
   "expo": {
     "name": "SPAR Mobile",
     "slug": "spar-mobile",
-    "scheme": "spar",
+    "scheme": "com.googleusercontent.apps.602406849502-7jj1581ag430gr53adj2oq4cecq5962m",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -27,10 +27,10 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "apiBase": "http://10.0.2.2:3000",
-      "devAuthCode": "dev:user-demo@example.com|Dev User",
+      "apiBase": "https://webappforhackathon-b6guerb9bcgee4h2.centralus-01.azurewebsites.net",
       "deviceId": "dev-simulator",
       "pushDemoToken": "dummy-token",
+      "scheme": "com.googleusercontent.apps.602406849502-7jj1581ag430gr53adj2oq4cecq5962m",
       "eas": {
         "projectId": "a6d579ae-a088-4371-b395-d1a58be9414b"
       }

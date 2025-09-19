@@ -19,6 +19,7 @@ export async function GET(request: Request) {
         redirectUri: config.redirectUri,
         scope: config.scope,
         codeChallengeMethod: 'S256',
+        devMode: config.devMode,
       },
       { cors }
     );

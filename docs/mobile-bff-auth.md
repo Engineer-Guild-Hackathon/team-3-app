@@ -7,7 +7,7 @@
 - `BFF_OIDC_CLIENT_ID` / `BFF_OIDC_CLIENT_SECRET` … モバイル専用クライアント。
 - `BFF_OIDC_REDIRECT_URI` … Expo 側のスキーム (`spar://auth/callback` など)。
 - `BFF_OIDC_SCOPE` … `openid profile email` を基本とし、必要に応じて追加。
-- `BFF_AUTH_DEV_MODE=1` で `dev:email@example.com` 形式のコードを許可（ローカル検証用）。
+- `BFF_AUTH_DEV_MODE=1` で `dev:email@example.com` 形式のコードを許可（ローカル検証用）。`/api/v1/auth/start` のレスポンスに `devMode=true` が含まれ、モバイル側で dev コード利用可否を判断します。
 
 ## AppJWT
 
@@ -50,7 +50,7 @@ BFF_APP_JWT_REFRESH_TTL=2592000
 - IdP (例: Azure AD B2C) でモバイル用クライアントを登録し、`redirect_uri` に `spar://auth/callback` を許可する。
 - 秘密情報 (`BFF_OIDC_CLIENT_SECRET`, `BFF_APP_JWT_SECRET`) は Key Vault 等で管理し、`.env.common` には記載しない。デプロイ環境でのみ環境変数として注入する。
 - `BFF_AUTH_DEV_MODE` を `0` に設定し、`dev:` 形式のコード受け入れを無効化する。
-- Expo 側では `extra.devAuthCode` を削除し、実際の認可コードフローのみでログインする。QA 向けには `app.config.js` や `.env` ランタイム設定で dev モードを制御する。
+- Expo 側では既定で `extra.devAuthCode` を設定せず、実際の認可コードフローのみでログインする。QA 向けに dev コードを使う場合は `BFF_AUTH_DEV_MODE=1` とし、`app.json` などで `extra.devAuthCode` を個別に注入する。
 - AppJWT シークレットは定期的にローテーションする。`@team3/auth-shared` の `verifyAppJwt` は `dev:` を許容しないため、監視で dev トークンの混入を検知する。
 
 ## 自動テスト
@@ -72,7 +72,7 @@ BFF_APP_JWT_REFRESH_TTL=2592000
    - `BFF_OIDC_CLIENT_SECRET` や `BFF_AUTH_DEV_MODE` なども `.env.dev` 側で上書きされていることを確認する。
 1. **Expo アプリ起動**: `expo start --android` もしくは `--ios` で起動し、ログにスキーム `spar://auth/callback` が登録されていることを確認する。
 2. **ログイン検証**:
-   - dev コードを使用する場合は `extra.devAuthCode` が設定されていることを確認し、「ログイン (OIDC/DEV)」ボタンを押下。
+   - dev コードを使用する場合は `BFF_AUTH_DEV_MODE=1` に設定したうえで `extra.devAuthCode` を注入し、ログ出力に `devMode=true` が含まれることを確認してからログインを実行。
    - 実機 OIDC の場合はブラウザが開き、正常に `spar://auth/callback` にリダイレクトされてアプリへ復帰することを確認。
    - 画面表示が「ログインに成功しました」に変わり、SecureStore に `spar.auth.tokens` が保存されているか `expo-secure-store` のデバッグ機能で確認。
 3. **トークンリフレッシュ**: 「トークン更新」ボタンを押下し、`/api/v1/auth/refresh` が 200 を返すことを mitmproxy などで確認。レスポンス内の `refreshToken` が更新され、SecureStore の値も更新されていること。

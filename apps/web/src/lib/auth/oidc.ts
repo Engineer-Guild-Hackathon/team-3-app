@@ -70,6 +70,11 @@ export async function exchangeAuthorizationCode(params: {
   if (!email) {
     throw new Error('OIDC id_token does not contain email claim');
   }
+  const emailVerified = (claims as { email_verified?: unknown }).email_verified;
+  if (typeof emailVerified === 'boolean' && emailVerified === false) {
+    // IdP 側で未確認メールのログインを拒否する（Google などの仕様に準拠）
+    throw new Error('OIDC id_token email is not verified');
+  }
   const sub = String(claims.sub ?? '').trim();
   return {
     sub: sub || email,
