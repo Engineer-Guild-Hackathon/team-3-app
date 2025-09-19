@@ -51,9 +51,17 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       # 参考: OIDC で azure/login するのが推奨。
 
-      - name: Get runner public IP
+      - name: Get runner IPv4
         id: ip
-        uses: haythem/public-ip@v1
+        shell: bash
+        run: |
+          set -euo pipefail
+          # IPv4 を強制。api.ipify.org はプレーンテキストでIPを返す
+          IPV4=$(curl -4 -s https://api.ipify.org)
+          if [[ -z "${IPV4}" ]]; then
+            echo "Failed to get IPv4"; exit 1
+          fi
+          echo "ip=${IPV4}" >> "$GITHUB_OUTPUT"
       # ランナーのパブリックIPを取得（ipify使用）。
 
       - name: Allow firewall from runner IP
