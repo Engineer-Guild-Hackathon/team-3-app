@@ -671,11 +671,13 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         role: "assistant",
         content: String(data.result?.answer ?? (data as any).result?.text ?? ""),
         createdAt: Date.now(),
+        status: data.result?.status,
       };
       const assistantPersisted = (data.meta?.assistantPersisted ?? (data as any).result?.meta?.assistantPersisted) !== false;
       const lastLocal = nextSessions.find((s) => s.id === active.id)?.messages?.at(-1);
       const lastLocalIsAssistant = lastLocal?.role === 'assistant';
-      const ended = (data.result?.status ?? 0) === -1 ? false : true;
+      const statusValue = data.result?.status ?? 0;
+      const ended = statusValue !== -1 && statusValue !== 999;
       // DB 側で破棄された場合でも、ローカルの直近が assistant でなければ UI は表示する
       if ((assistantPersisted || !lastLocalIsAssistant) && assistant.content) {
         const withAssistant = nextSessions.map((s) =>
@@ -808,11 +810,18 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
           history: turns,
         } as RunChatInput;
         const data = await apiRunChat(payload);
-        const assistant: ChatMessage = { id: rid(), role: "assistant", content: String(data.result?.answer ?? (data as any).result?.text ?? ""), createdAt: Date.now() };
+        const assistant: ChatMessage = {
+          id: rid(),
+          role: "assistant",
+          content: String(data.result?.answer ?? (data as any).result?.text ?? ""),
+          createdAt: Date.now(),
+          status: data.result?.status,
+        };
         const assistantPersisted = (data.meta?.assistantPersisted ?? (data as any).result?.meta?.assistantPersisted) !== false;
         let nextState: ChatSession[] = [];
         setSessions((prev) => {
-          const ended = (data.result?.status ?? 0) === -1 ? false : true;
+          const statusValue = data.result?.status ?? 0;
+          const ended = statusValue !== -1 && statusValue !== 999;
           const next = prev.map((s) => {
             if (s.id !== active.id) return s;
             const base = { ...s, status: ended ? 'ended' : (s.status ?? 'in_progress'), updatedAt: Date.now() } as ChatSession;
