@@ -122,26 +122,6 @@ jobs:
             -g "$AZURE_RESOURCE_GROUP" -n "$AZURE_WEBAPP_NAME" \
             --settings "${SETTINGS[@]}"
 
-      # --- DB マイグレーション（本番イメージを一時起動して実行） ---
-      - name: Run DB migration in the same image
-        shell: bash
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          set -euo pipefail
-
-          echo "Pulling image to run migration..."
-          IMAGE="${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
-          docker pull "$IMAGE"
-
-          echo "Running migration inside the same image as production..."
-          docker run --rm \
-            -e DATABASE_URL="$DATABASE_URL" \
-            "$IMAGE" \
-            sh -lc 'node scripts/migrate.mjs'
-
-          echo "Migration finished successfully."
-
       # --- Web App の使用イメージを更新（デプロイ） ---
       - name: Deploy to Web App (Container)
         uses: azure/webapps-deploy@v2
