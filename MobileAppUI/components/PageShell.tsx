@@ -176,11 +176,6 @@ const PageShell = ({
   drawerTransitionDuration = 220,
   onCreateNewChat,
 }: PageShellProps) => {
-  const resolvedHeaderConfig = React.useMemo(
-    () => buildHeaderConfig(headerConfig, rightActionVariant, onCreateNewChat),
-    [headerConfig, onCreateNewChat, rightActionVariant],
-  );
-
   const [isDrawerOpen, setIsDrawerOpen] = React.useState(false);
   const drawerAnim = React.useRef(new Animated.Value(0));
 
@@ -188,21 +183,64 @@ const PageShell = ({
     setIsDrawerOpen((prev) => !prev);
   }, []);
 
+  const closeDrawer = React.useCallback(() => {
+    setIsDrawerOpen(false);
+  }, []);
+
+  const createHandler = React.useMemo(() => {
+    if (!onCreateNewChat) {
+      return undefined;
+    }
+    return () => {
+      onCreateNewChat();
+      closeDrawer();
+    };
+  }, [closeDrawer, onCreateNewChat]);
+
+  const resolvedHeaderConfig = React.useMemo(
+    () => buildHeaderConfig(headerConfig, rightActionVariant, createHandler),
+    [createHandler, headerConfig, rightActionVariant],
+  );
+
   const enhancedDrawer = React.useMemo(() => {
-    if (!drawer || !onCreateNewChat || !React.isValidElement(drawer)) {
+    if (!drawer || !React.isValidElement(drawer)) {
       return drawer;
     }
 
-    const props = drawer.props as { onCreatePress?: () => void };
+    const props = drawer.props as {
+      onCreatePress?: () => void;
+      onSelect?: (entry: unknown) => void;
+    };
     const originalOnCreate = props?.onCreatePress;
+    const originalOnSelect = props?.onSelect;
 
-    return React.cloneElement(drawer as React.ReactElement<any>, {
-      onCreatePress: () => {
-        onCreateNewChat();
-        originalOnCreate?.();
-      },
-    } as Record<string, unknown>);
-  }, [drawer, onCreateNewChat]);
+    const nextProps: Record<string, unknown> = {};
+
+    if (createHandler || originalOnCreate) {
+      nextProps.onCreatePress = () => {
+        if (createHandler) {
+          createHandler();
+        } else {
+          originalOnCreate?.();
+          closeDrawer();
+          return;
+        }
+
+        if (originalOnCreate && originalOnCreate !== onCreateNewChat) {
+          originalOnCreate();
+        }
+      };
+    }
+
+    if (originalOnSelect) {
+      nextProps.onSelect = (entry: unknown) => {
+        originalOnSelect(entry);
+        closeDrawer();
+      };
+    }
+
+    return React.cloneElement(drawer as React.ReactElement<any>, nextProps);
+  }, [closeDrawer, createHandler, drawer, onCreateNewChat]);
 
   React.useEffect(() => {
     if (!enhancedDrawer && isDrawerOpen) {
@@ -243,45 +281,56 @@ const PageShell = ({
   });
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-      <Header config={headerWithDrawer} />
-      <ImageBackground
-        source={require("../assets/PageShellBg.png")}
-        style={[styles.background, backgroundStyle]}
-        imageStyle={styles.backgroundImage}
-      >
-        <View style={styles.contentWrapper}>
-          <View style={[styles.content, contentStyle]}>{children}</View>
-          {enhancedDrawer ? (
-            <Animated.View
-              style={[
-                styles.drawerContainer,
-                {
-                  width: drawerWidth,
-                  transform: [{ translateX: drawerTranslateX }],
-                },
-              ]}
-            >
-              <View style={styles.drawerInner}>{enhancedDrawer}</View>
-            </Animated.View>
-          ) : null}
+    <ImageBackground
+      source={require("../assets/PageShellBg.png")}
+      style={styles.rootBackground}
+      imageStyle={styles.backgroundImage}
+    >
+      <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+        <View style={[styles.background, backgroundStyle]}>
+          <View style={styles.inner}>
+            <Header config={headerWithDrawer} />
+            <View style={styles.contentWrapper}>
+              <View style={[styles.content, contentStyle]}>{children}</View>
+              {enhancedDrawer ? (
+                <Animated.View
+                  style={[
+                    styles.drawerContainer,
+                    {
+                      width: drawerWidth,
+                      transform: [{ translateX: drawerTranslateX }],
+                    },
+                  ]}
+                >
+                  <View style={styles.drawerInner}>{enhancedDrawer}</View>
+                </Animated.View>
+              ) : null}
+            </View>
+          </View>
         </View>
-      </ImageBackground>
-    </SafeAreaView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
+  rootBackground: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: Color.colorWhite,
+    backgroundColor: "transparent",
   },
   background: {
-    flex: 1,
     padding: StyleVariable.spaceLg,
+    flex: 1,
   },
   backgroundImage: {
     resizeMode: "cover",
+  },
+  inner: {
+    flex: 1,
+    gap: StyleVariable.spaceMd,
   },
   contentWrapper: {
     flex: 1,
