@@ -81,6 +81,7 @@ export const ChatStoreProvider = ({ children }: ChatStoreProviderProps) => {
   const { apiClient, isAuthenticated, setStatus, reauthenticate } = useAuth();
   const [threads, setThreads] = React.useState<ChatThread[]>([]);
   const threadsRef = React.useRef<ChatThread[]>(threads);
+  const autoIntroRequestedRef = React.useRef<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
@@ -136,6 +137,207 @@ export const ChatStoreProvider = ({ children }: ChatStoreProviderProps) => {
     }
   }, [apiClient, clearForSignOut, isAuthenticated, reauthenticate, setStatus]);
 
+  const requestAutoIntro = React.useCallback(
+    async (chatId: string, fallbackThread?: ChatThread) => {
+      if (!isAuthenticated) {
+        return;
+      }
+      if (autoIntroRequestedRef.current[chatId]) {
+        return;
+      }
+      const baseSnapshot =
+        threadsRef.current.find((thread) => thread.id === chatId) ?? fallbackThread ?? null;
+      if (!baseSnapshot) {
+        return;
+      }
+      const hasResolvedMessage = baseSnapshot.messages.some((message) => !message.pending);
+      if (hasResolvedMessage) {
+        autoIntroRequestedRef.current[chatId] = true;
+        return;
+      }
+      autoIntroRequestedRef.current[chatId] = true;
+
+      const now = nowAsIsoString();
+      const placeholderId = `assistant-intro-${chatId}`;
+      const pendingAssistant: ChatMessage = {
+        id: placeholderId,
+        author: 'assistant',
+        text: '考え中...',
+        createdAt: now,
+        pending: true,
+        status: -1,
+      };
+
+      setThreads((prev) => {
+        const exists = prev.some((thread) => thread.id === chatId);
+        if (!exists) {
+          const baseMessages = baseSnapshot.messages ?? [];
+          const hasPlaceholder = baseMessages.some((message) => message.id === placeholderId);
+          const withPending = hasPlaceholder
+            ? baseMessages
+            : [...baseMessages, pendingAssistant];
+          const nextThread: ChatThread = {
+            ...baseSnapshot,
+            messages: withPending,
+            messagesLoaded: true,
+            updatedAt: now,
+          };
+          return [nextThread, ...prev];
+        }
+        return prev.map((thread) =>
+          thread.id === chatId
+            ? {
+                ...thread,
+                messages: thread.messages.some((message) => message.id === placeholderId)
+                  ? thread.messages
+                  : [...thread.messages, pendingAssistant],
+                messagesLoaded: true,
+                updatedAt: now,
+              }
+            : thread,
+        );
+      });
+
+      try {
+        const baseMessages = baseSnapshot.messages;
+        const turns = messagesToTurns(baseMessages);
+        const numericId = numericIdFromUuid(chatId);
+        const responseRaw = await apiClient.send<RunChatResponse>('/api/v1/chat', {
+          method: 'POST',
+          body: {
+            chatId: numericId,
+            subject:
+              (baseSnapshot.title && baseSnapshot.title.trim().length > 0
+                ? baseSnapshot.title
+                : DEFAULT_CHAT_TITLE) ?? DEFAULT_CHAT_TITLE,
+            theme: '一般',
+            clientSessionId: chatId,
+            history: turns,
+          },
+        });
+        const response = ensureJson(responseRaw);
+        const answer =
+          (response?.result?.answer ?? response?.answer ?? '').toString() || '質問を取得できませんでした';
+        const status = response?.result?.status ?? response?.status ?? -1;
+        const assistantMessage: ChatMessage = {
+          id: placeholderId,
+          author: 'assistant',
+          text: answer,
+          createdAt: nowAsIsoString(),
+          pending: false,
+          status,
+        };
+        setThreads((prev) => {
+          const exists = prev.some((thread) => thread.id === chatId);
+          if (!exists) {
+            const baseMessages = baseSnapshot.messages ?? [];
+            const hasPlaceholder = baseMessages.some((message) => message.id === placeholderId);
+            const mergedMessages = hasPlaceholder
+              ? baseMessages.map((message) => (message.id === placeholderId ? assistantMessage : message))
+              : [...baseMessages, assistantMessage];
+            const nextThread: ChatThread = {
+              ...baseSnapshot,
+              messages: mergedMessages,
+              title:
+                baseSnapshot.title === DEFAULT_CHAT_TITLE && answer ? answer.slice(0, 24) : baseSnapshot.title,
+              updatedAt: assistantMessage.createdAt,
+              status: status === -1 ? 'in_progress' : 'ended',
+              messagesLoaded: true,
+            };
+            return [nextThread, ...prev];
+          }
+          return prev.map((thread) => {
+            if (thread.id !== chatId) {
+              return thread;
+            }
+            const updatedMessages = (() => {
+              let replaced = false;
+              const mapped = thread.messages.map((message) => {
+                if (message.id === placeholderId) {
+                  replaced = true;
+                  return assistantMessage;
+                }
+                return message;
+              });
+              if (!replaced) {
+                return [...thread.messages, assistantMessage];
+              }
+              return mapped;
+            })();
+            return {
+              ...thread,
+              messages: updatedMessages,
+              title:
+                thread.title === DEFAULT_CHAT_TITLE && answer ? answer.slice(0, 24) : thread.title,
+              updatedAt: assistantMessage.createdAt,
+              status: status === -1 ? 'in_progress' : 'ended',
+              messagesLoaded: true,
+            };
+          });
+        });
+      } catch (error) {
+        const status = extractStatus(error);
+        const unauthorized = isUnauthorizedStatus(status);
+        const failMessage: ChatMessage = {
+          id: placeholderId,
+          author: 'assistant',
+          text: unauthorized
+            ? 'セッションが切れました。再ログインしてください。'
+            : `質問の取得に失敗しました: ${error instanceof Error ? error.message : String(error)}`,
+          createdAt: nowAsIsoString(),
+          pending: false,
+          status: unauthorized ? -1 : 0,
+        };
+        setThreads((prev) => {
+          const exists = prev.some((thread) => thread.id === chatId);
+          if (!exists) {
+            const baseMessages = baseSnapshot.messages ?? [];
+            const hasPlaceholder = baseMessages.some((message) => message.id === placeholderId);
+            const merged = hasPlaceholder
+              ? baseMessages.map((message) => (message.id === placeholderId ? failMessage : message))
+              : [...baseMessages, failMessage];
+            const nextThread: ChatThread = {
+              ...baseSnapshot,
+              messages: merged,
+              messagesLoaded: true,
+            };
+            return [nextThread, ...prev];
+          }
+          return prev.map((thread) => {
+            if (thread.id !== chatId) {
+              return thread;
+            }
+            let replaced = false;
+            const updatedMessages = thread.messages.map((message) => {
+              if (message.id === placeholderId) {
+                replaced = true;
+                return failMessage;
+              }
+              return message;
+            });
+            if (!replaced) {
+              updatedMessages.push(failMessage);
+            }
+            return {
+              ...thread,
+              messages: updatedMessages,
+              messagesLoaded: true,
+            };
+          });
+        });
+        if (unauthorized) {
+          autoIntroRequestedRef.current[chatId] = false;
+          await reauthenticate();
+          return;
+        }
+        setErrorMessage(error instanceof Error ? error.message : String(error));
+        setStatus('最初の質問の取得に失敗しました');
+        autoIntroRequestedRef.current[chatId] = false;
+      }
+    },
+    [apiClient, isAuthenticated, reauthenticate, setErrorMessage, setStatus],
+  );
+
   const ensureMessages = React.useCallback(
     async (chatId: string) => {
       if (!isAuthenticated) return;
@@ -165,19 +367,25 @@ export const ChatStoreProvider = ({ children }: ChatStoreProviderProps) => {
           pending: false,
           status: item.role === 'assistant' ? -1 : undefined,
         }));
+        const hasServerMessages = messages.length > 0;
         setThreads((prev) =>
           prev.map((thread) =>
             thread.id === chatId
               ? {
                   ...thread,
-                  messages,
+                  messages: hasServerMessages ? messages : thread.messages,
                   messagesLoaded: true,
                   isLoadingMessages: false,
-                  updatedAt: thread.updatedAt ?? messages.at(-1)?.createdAt,
+                  updatedAt: hasServerMessages
+                    ? messages.at(-1)?.createdAt ?? thread.updatedAt ?? nowAsIsoString()
+                    : thread.updatedAt,
                 }
               : thread,
           ),
         );
+        if (!hasServerMessages) {
+          await requestAutoIntro(chatId, snapshot ?? undefined);
+        }
       } catch (error) {
         setThreads((prev) =>
           prev.map((thread) =>
@@ -198,7 +406,7 @@ export const ChatStoreProvider = ({ children }: ChatStoreProviderProps) => {
         setStatus('メッセージの取得に失敗しました');
       }
     },
-    [apiClient, isAuthenticated, reauthenticate, setStatus],
+    [apiClient, isAuthenticated, reauthenticate, requestAutoIntro, setStatus],
   );
 
   const createThread = React.useCallback(
@@ -224,17 +432,30 @@ export const ChatStoreProvider = ({ children }: ChatStoreProviderProps) => {
           okStatuses: [200, 201],
         });
         const created = ensureJson(raw);
+        const resolvedId = created?.id ?? Crypto.randomUUID();
+        const pendingCreatedAt = nowAsIsoString();
+        const introPlaceholderId = `assistant-intro-${resolvedId}`;
+        const introPlaceholder: ChatMessage = {
+          id: introPlaceholderId,
+          author: 'assistant',
+          text: '考え中...',
+          createdAt: pendingCreatedAt,
+          pending: true,
+          status: -1,
+        };
         const newThread: ChatThread = {
-          id: created?.id ?? Crypto.randomUUID(),
-          title: created?.title && created.title.trim().length > 0 ? created.title : DEFAULT_CHAT_TITLE,
+          id: resolvedId,
+          title:
+            created?.title && created.title.trim().length > 0 ? created.title : DEFAULT_CHAT_TITLE,
           status: created?.status ?? 'in_progress',
-          createdAt: created?.createdAt,
-          updatedAt: created?.updatedAt,
-          messages: [],
-          messagesLoaded: false,
+          createdAt: created?.createdAt ?? pendingCreatedAt,
+          updatedAt: created?.updatedAt ?? pendingCreatedAt,
+          messages: [introPlaceholder],
+          messagesLoaded: true,
         };
         setThreads((prev) => [newThread, ...prev.filter((thread) => thread.id !== newThread.id)]);
         setStatus('チャットを作成しました');
+        void requestAutoIntro(newThread.id, newThread);
         return newThread;
       } catch (error) {
         const status = extractStatus(error);
@@ -247,7 +468,7 @@ export const ChatStoreProvider = ({ children }: ChatStoreProviderProps) => {
         return null;
       }
     },
-    [apiClient, isAuthenticated, reauthenticate, setStatus],
+    [apiClient, isAuthenticated, reauthenticate, requestAutoIntro, setErrorMessage, setStatus],
   );
 
   const updateThreadTitle = React.useCallback((chatId: string, title: string) => {

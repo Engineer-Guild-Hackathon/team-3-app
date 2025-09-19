@@ -17,7 +17,7 @@ type HomeScreenProps = NativeStackScreenProps<RootStackParamList, "Home">;
 
 const Home = ({ navigation }: HomeScreenProps) => {
   const { threads, histories, createThread } = useChatStore();
-  const { profile, statusMessage, isAuthenticated, login } = useAuth();
+  const { profile, statusMessage, isAuthenticated, login, logout } = useAuth();
 
   const [activeHistoryId, setActiveHistoryId] = React.useState<string>("");
 
@@ -55,6 +55,10 @@ const Home = ({ navigation }: HomeScreenProps) => {
       navigation.navigate("Chat", { threadId: created.id });
     }
   }, [createThread, isAuthenticated, login, navigation]);
+
+  const handleLogout = React.useCallback(() => {
+    logout();
+  }, [logout]);
 
   const userName = React.useMemo(() => {
     if (profile?.displayName && profile.displayName.trim().length > 0) {
@@ -94,6 +98,7 @@ const Home = ({ navigation }: HomeScreenProps) => {
                 historyEntries={histories}
                 activeHistoryId={activeHistoryId}
                 onSelectHistory={handleSelectHistory}
+                onLogout={handleLogout}
               />
               {statusMessage ? (
                 <Text style={styles.statusText}>{statusMessage}</Text>

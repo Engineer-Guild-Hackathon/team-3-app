@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Text, StyleSheet, View } from "react-native";
+import { Pressable, Text, StyleSheet, View } from "react-native";
 
 import Avatar from "./Avatar";
 import {
@@ -14,13 +14,23 @@ import {
 export type UserInfoProps = {
   name?: string;
   avatarSize?: number;
+  onLogout?: () => void;
 };
 
-const UserInfo = ({ name = "UserName", avatarSize = 48 }: UserInfoProps) => {
+const UserInfo = ({ name = "UserName", avatarSize = 48, onLogout }: UserInfoProps) => {
   return (
     <View style={[GlassStyle.surface, styles.container]}>
       <Avatar size={avatarSize} />
       <Text style={styles.username}>{name}</Text>
+      {onLogout ? (
+        <Pressable
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.logoutButton, pressed ? styles.logoutButtonPressed : null]}
+          onPress={onLogout}
+        >
+          <Text style={styles.logoutLabel}>ログアウト</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 };
@@ -39,6 +49,22 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontFamily: FontFamily.roundedMplus1c,
     color: Color.colorBlack,
+  },
+  logoutButton: {
+    marginLeft: StyleVariable.spaceMd,
+    paddingHorizontal: StyleVariable.spaceSm,
+    paddingVertical: StyleVariable.spaceXs,
+    borderRadius: StyleVariable.radiusMd,
+    backgroundColor: Color.colorChatTapped,
+  },
+  logoutButtonPressed: {
+    opacity: 0.8,
+  },
+  logoutLabel: {
+    fontSize: FontSize.size_14,
+    fontFamily: FontFamily.notoSansJPRegular,
+    color: Color.colorTextPrimary,
+    fontWeight: "600",
   },
 });
 

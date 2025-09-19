@@ -4,13 +4,54 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useFonts } from 'expo-font';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { ActivityIndicator, View, StyleSheet } from 'react-native';
+
 import Chat from './screens/Chat';
 import Home from './screens/Home';
+import LoginScreen from './screens/Login';
 import { ChatStoreProvider } from './contexts/chatStore';
-import { AuthProvider } from './contexts/auth';
+import { AuthProvider, useAuth } from './contexts/auth';
 import type { RootStackParamList } from './navigation/types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+const LoadingScreen = () => (
+  <View style={styles.loadingContainer}>
+    <ActivityIndicator size="large" color="#2563eb" />
+  </View>
+);
+
+const AppContent = () => {
+  const { isInitializing, isAuthenticated } = useAuth();
+
+  if (isInitializing) {
+    return <LoadingScreen />;
+  }
+
+  if (!isAuthenticated) {
+    return <LoginScreen />;
+  }
+
+  return (
+    <ChatStoreProvider>
+      <NavigationContainer>
+        <Stack.Navigator
+          initialRouteName="Home"
+          screenOptions={{ headerShown: false }}
+        >
+          <Stack.Screen
+            name="Home"
+            component={Home}
+          />
+          <Stack.Screen
+            name="Chat"
+            component={Chat}
+          />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </ChatStoreProvider>
+  );
+};
 
 const App = () => {
   const [fontsLoaded, fontError] = useFonts({
@@ -25,26 +66,18 @@ const App = () => {
   return (
     <AuthProvider>
       <SafeAreaProvider>
-        <ChatStoreProvider>
-          <NavigationContainer>
-            <Stack.Navigator
-              initialRouteName="Home"
-              screenOptions={{ headerShown: false }}
-            >
-              <Stack.Screen
-                name="Home"
-                component={Home}
-              />
-              <Stack.Screen
-                name="Chat"
-                component={Chat}
-              />
-            </Stack.Navigator>
-          </NavigationContainer>
-        </ChatStoreProvider>
+        <AppContent />
       </SafeAreaProvider>
     </AuthProvider>
   );
 };
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
 
 export default App;
