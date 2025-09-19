@@ -81,6 +81,7 @@ jobs:
       # - GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
       # - ALLOWED_EMAIL_DOMAIN, ALLOWED_EMAILS（任意）
       # - DATABASE_URL
+      # - AZURE_CONTENT_SAFETY_ENDPOINT
       - name: Apply App Settings from Secrets
         shell: bash
         env:
@@ -91,6 +92,7 @@ jobs:
           ALLOWED_EMAIL_DOMAIN: ${{ secrets.ALLOWED_EMAIL_DOMAIN }}
           ALLOWED_EMAILS: ${{ secrets.ALLOWED_EMAILS }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AZURE_CONTENT_SAFETY_ENDPOINT: ${{ secrets.AZURE_CONTENT_SAFETY_ENDPOINT }}
         run: |
           set -euo pipefail
           declare -a SETTINGS
@@ -111,6 +113,7 @@ jobs:
           add_setting "ALLOWED_EMAIL_DOMAIN" "$ALLOWED_EMAIL_DOMAIN"
           add_setting "ALLOWED_EMAILS" "$ALLOWED_EMAILS"
           add_setting "DATABASE_URL" "$DATABASE_URL"
+          add_setting "AZURE_CONTENT_SAFETY_ENDPOINT" "$AZURE_CONTENT_SAFETY_ENDPOINT"
 
           if [ ${#SETTINGS[@]} -eq 0 ]; then
             echo "::warning title=No app settings applied::No matching Secrets were provided."
