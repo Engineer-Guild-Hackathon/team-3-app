@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ApiClient } from '@/lib/http';
+import type { RunChatInput } from '@/types/llm';
 import { createChat, listChats, runChat } from './chat';
 
 function createMockClient(response: unknown) {
@@ -31,7 +32,7 @@ describe('lib/api/chat', () => {
   });
 
   it('runs chat via /api/v1/chat and maps response to RunChatOutput', async () => {
-    const payload = { chatId: 42, subject: '数学', theme: '確率', history: [] } as const;
+    const payload: RunChatInput = { chatId: 42, subject: '数学', theme: '確率', history: [] };
     const { client, json } = createMockClient({ chatId: 'uuid', answer: 'hello', status: 0, meta: { assistantPersisted: true } });
 
     const data = await runChat(payload, client);

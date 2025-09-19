@@ -1,6 +1,7 @@
 // フロントエンド用の軽量HTTPユーティリティ（日本語コメント）
 
 import { ApiClient, ApiClientOptions, ApiClientError } from "@/lib/api/client";
+import { getValidAccessToken, invalidateStoredTokens } from "@/lib/auth/web-appjwt";
 
 export type { ApiClientOptions, ApiClientError };
 export { ApiClient };
