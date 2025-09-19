@@ -21,6 +21,7 @@ export type InputAreaProps = {
   onChangeText?: (text: string) => void;
   onSend?: (text: string) => void;
   status?: InputAreaStatus;
+  onFocus?: () => void;
 };
 
 const InputArea = React.forwardRef<TextInput, InputAreaProps>(
@@ -31,6 +32,7 @@ const InputArea = React.forwardRef<TextInput, InputAreaProps>(
     onChangeText,
     onSend,
     status = "default",
+    onFocus,
   }, ref) => {
     const inputRef = React.useRef<TextInput>(null);
     const isControlled = value !== undefined;
@@ -100,6 +102,7 @@ const InputArea = React.forwardRef<TextInput, InputAreaProps>(
           onSubmitEditing={handleSend}
           editable={!isWaiting}
           selectTextOnFocus={!isWaiting}
+          onFocus={onFocus}
         />
         <SendButton onPress={handleSend} disabled={status !== "default"} />
       </View>

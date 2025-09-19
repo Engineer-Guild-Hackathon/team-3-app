@@ -1,70 +1,156 @@
 import * as React from "react";
-import { FlatList, ListRenderItem, StyleSheet, View } from "react-native";
+import {
+  FlatList,
+  ListRenderItem,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
 
-import { Gap, Padding } from "../GlobalStyles";
+import { Color, Gap, Padding, StyleVariable } from "../GlobalStyles";
 import ChatBubble from "./ChatBubble";
 import type { ChatMessage } from "./types";
 import { getSampleChatMessages } from "../utils/sampleData";
+import ScrollDown from "../assets/ScrollDown.svg";
 
 export type ChatAreaProps = {
   messages?: ChatMessage[];
+  onBottomStateChange?: (isAtBottom: boolean) => void;
 };
 
-const ChatArea = ({ messages = [] }: ChatAreaProps) => {
-  const listRef = React.useRef<FlatList<ChatMessage>>(null);
+export type ChatAreaHandle = {
+  scrollToEnd: (options?: { animated?: boolean }) => void;
+};
 
-  const fallbackMessages = React.useMemo(() => getSampleChatMessages(), []);
-  const data = messages.length > 0 ? messages : fallbackMessages;
+const SCROLL_BOTTOM_THRESHOLD = 32;
 
-  const lastMessageKey = React.useMemo(() => {
-    if (data.length === 0) {
-      return "empty";
-    }
-    const last = data[data.length - 1];
-    const pendingKey = last.pending ? "pending" : "done";
-    const statusKey = last.status ?? "unknown";
-    return `${last.id}|${last.text}|${pendingKey}|${statusKey}`;
-  }, [data]);
+const ChatArea = React.forwardRef<ChatAreaHandle, ChatAreaProps>(
+  ({ messages = [], onBottomStateChange }, ref) => {
+    const listRef = React.useRef<FlatList<ChatMessage>>(null);
+    const isAtBottomRef = React.useRef(true);
+    const [isAtBottom, setIsAtBottom] = React.useState(true);
 
-  React.useEffect(() => {
-    const frame = requestAnimationFrame(() => {
+    const fallbackMessages = React.useMemo(() => getSampleChatMessages(), []);
+    const data = messages.length > 0 ? messages : fallbackMessages;
+
+    const lastMessageKey = React.useMemo(() => {
+      if (data.length === 0) {
+        return "empty";
+      }
+      const last = data[data.length - 1];
+      const pendingKey = last.pending ? "pending" : "done";
+      const statusKey = last.status ?? "unknown";
+      return `${last.id}|${last.text}|${pendingKey}|${statusKey}`;
+    }, [data]);
+
+    React.useImperativeHandle(
+      ref,
+      () => ({
+        scrollToEnd: ({ animated = true } = {}) => {
+          listRef.current?.scrollToEnd({ animated });
+        },
+      }),
+      [],
+    );
+
+    React.useEffect(() => {
+      onBottomStateChange?.(isAtBottom);
+    }, [isAtBottom, onBottomStateChange]);
+
+    React.useEffect(() => {
+      if (!isAtBottomRef.current) {
+        return;
+      }
+      const frame = requestAnimationFrame(() => {
+        listRef.current?.scrollToEnd({ animated: true });
+      });
+      const timeout = setTimeout(() => {
+        listRef.current?.scrollToEnd({ animated: true });
+      }, 180);
+
+      return () => {
+        cancelAnimationFrame(frame);
+        clearTimeout(timeout);
+      };
+    }, [lastMessageKey]);
+
+    const updateScrollPosition = React.useCallback(
+      (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+        const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+        const distanceFromBottom =
+          contentSize.height - (layoutMeasurement.height + contentOffset.y);
+        const nearBottom = distanceFromBottom <= SCROLL_BOTTOM_THRESHOLD;
+
+        if (nearBottom !== isAtBottomRef.current) {
+          isAtBottomRef.current = nearBottom;
+          setIsAtBottom(nearBottom);
+        }
+      },
+      [],
+    );
+
+    const handleContentSizeChange = React.useCallback(() => {
+      if (isAtBottomRef.current) {
+        listRef.current?.scrollToEnd({ animated: true });
+      }
+    }, []);
+
+    const handleScrollToBottom = React.useCallback(() => {
       listRef.current?.scrollToEnd({ animated: true });
-    });
-    const timeout = setTimeout(() => {
-      listRef.current?.scrollToEnd({ animated: true });
-    }, 180);
+      if (!isAtBottomRef.current) {
+        isAtBottomRef.current = true;
+        setIsAtBottom(true);
+      }
+    }, []);
 
-    return () => {
-      cancelAnimationFrame(frame);
-      clearTimeout(timeout);
-    };
-  }, [lastMessageKey]);
+    const renderItem = React.useCallback<ListRenderItem<ChatMessage>>(
+      ({ item }) => (
+        <View style={styles.itemContainer}>
+          <ChatBubble message={item} />
+        </View>
+      ),
+      [],
+    );
 
-  const renderItem = React.useCallback<ListRenderItem<ChatMessage>>(
-    ({ item }) => (
-      <View style={styles.itemContainer}>
-        <ChatBubble message={item} />
+    return (
+      <View style={styles.wrapper}>
+        <FlatList
+          ref={listRef}
+          data={data}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          style={styles.list}
+          contentContainerStyle={styles.messageContainer}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          ListFooterComponent={<View style={styles.footerSpacer} />}
+          showsVerticalScrollIndicator={false}
+          onScroll={updateScrollPosition}
+          scrollEventThrottle={16}
+          onContentSizeChange={handleContentSizeChange}
+        />
+        {isAtBottom ? null : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="scroll to latest message"
+            style={({ pressed }) => [styles.scrollButton, pressed && styles.scrollButtonPressed]}
+            onPress={handleScrollToBottom}
+          >
+            <ScrollDown width={StyleVariable.iconSizeLg} height={StyleVariable.iconSizeLg} />
+          </Pressable>
+        )}
       </View>
-    ),
-    [],
-  );
+    );
+  },
+);
 
-  return (
-    <FlatList
-      ref={listRef}
-      data={data}
-      keyExtractor={(item) => item.id}
-      renderItem={renderItem}
-      style={styles.list}
-      contentContainerStyle={styles.messageContainer}
-      ItemSeparatorComponent={() => <View style={styles.separator} />}
-      ListFooterComponent={<View style={styles.footerSpacer} />}
-      showsVerticalScrollIndicator={false}
-    />
-  );
-};
+ChatArea.displayName = "ChatArea";
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+  },
   list: {
     flex: 1,
   },
@@ -80,6 +166,28 @@ const styles = StyleSheet.create({
   },
   footerSpacer: {
     height: Padding.p_24,
+  },
+  scrollButton: {
+    position: "absolute",
+    right: Padding.p_24,
+    bottom: Padding.p_24,
+    width: StyleVariable.iconSizeXl,
+    height: StyleVariable.iconSizeXl,
+    borderRadius: StyleVariable.iconSizeXl / 2,
+    backgroundColor: Color.colorBrandPrimary,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: Color.colorBlack,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    elevation: 6,
+  },
+  scrollButtonPressed: {
+    opacity: 0.75,
   },
 });
 

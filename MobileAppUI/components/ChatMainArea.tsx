@@ -2,7 +2,7 @@ import * as React from "react";
 import { StyleSheet, View } from "react-native";
 
 import { Gap, Padding, Color } from "../GlobalStyles";
-import ChatArea from "./ChatArea";
+import ChatArea, { type ChatAreaHandle } from "./ChatArea";
 import InputArea, { type InputAreaStatus } from "./InputArea";
 import type { ChatMessage } from "./types";
 
@@ -18,6 +18,8 @@ const ChatMainArea = ({
   inputStatus,
 }: ChatMainAreaProps) => {
   const [draft, setDraft] = React.useState("");
+  const chatAreaRef = React.useRef<ChatAreaHandle>(null);
+  const [isChatAtBottom, setIsChatAtBottom] = React.useState(true);
   const hasPendingAssistant = React.useMemo(
     () =>
       messages.some(
@@ -59,10 +61,30 @@ const ChatMainArea = ({
     }
   }, [resolvedStatus]);
 
+  const handleChatBottomStateChange = React.useCallback((atBottom: boolean) => {
+    setIsChatAtBottom(atBottom);
+  }, []);
+
+  const handleInputFocus = React.useCallback(() => {
+    if (!isChatAtBottom) {
+      return;
+    }
+    requestAnimationFrame(() => {
+      chatAreaRef.current?.scrollToEnd({ animated: true });
+    });
+    setTimeout(() => {
+      chatAreaRef.current?.scrollToEnd({ animated: true });
+    }, 180);
+  }, [isChatAtBottom]);
+
   return (
     <View style={styles.container}>
       <View style={styles.messages}>
-        <ChatArea messages={messages} />
+        <ChatArea
+          ref={chatAreaRef}
+          messages={messages}
+          onBottomStateChange={handleChatBottomStateChange}
+        />
       </View>
       <View style={styles.inputContainer}>
         <InputArea
@@ -70,6 +92,7 @@ const ChatMainArea = ({
           onChangeText={setDraft}
           onSend={handleSend}
           status={resolvedStatus}
+          onFocus={handleInputFocus}
         />
       </View>
     </View>
