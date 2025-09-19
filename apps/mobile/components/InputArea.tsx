@@ -109,6 +109,7 @@ const InputArea = React.forwardRef<TextInput, InputAreaProps>(
           editable={!isWaiting}
           selectTextOnFocus={!isWaiting}
           onFocus={onFocus}
+          textAlignVertical="top"
         />
         <SendButton onPress={handleSend} disabled={status !== "default"} />
       </View>

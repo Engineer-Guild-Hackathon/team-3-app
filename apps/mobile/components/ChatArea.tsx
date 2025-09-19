@@ -7,12 +7,12 @@ import {
   Pressable,
   StyleSheet,
   View,
+  Text,
 } from "react-native";
 
 import { Color, Gap, Padding, StyleVariable } from "../GlobalStyles";
 import ChatBubble from "./ChatBubble";
 import type { ChatMessage } from "./types";
-import { getSampleChatMessages } from "../utils/sampleData";
 import ScrollDown from "../assets/ScrollDown.svg";
 
 export type ChatAreaProps = {
@@ -33,9 +33,7 @@ const ChatArea = React.forwardRef<ChatAreaHandle, ChatAreaProps>(
     const isAtBottomRef = React.useRef(true);
     const [isAtBottom, setIsAtBottom] = React.useState(true);
 
-    // データ未指定時はサンプルを提示して UI を確認しやすくする
-    const fallbackMessages = React.useMemo(() => getSampleChatMessages(), []);
-    const data = messages.length > 0 ? messages : fallbackMessages;
+    const data = messages;
 
     // 共通のスクロール末尾処理を一箇所で管理
     const scrollToLatest = React.useCallback(
@@ -51,9 +49,9 @@ const ChatArea = React.forwardRef<ChatAreaHandle, ChatAreaProps>(
         return "empty";
       }
       const last = data[data.length - 1];
-      const pendingKey = last.pending ? "pending" : "done";
-      const statusKey = last.status ?? "unknown";
-      return `${last.id}|${last.text}|${pendingKey}|${statusKey}`;
+      const pendingKey = last?.pending ? "pending" : "done";
+      const statusKey = last?.status ?? "unknown";
+      return `${last?.id ?? "unknown"}|${last?.text ?? ""}|${pendingKey}|${statusKey}`;
     }, [data]);
 
     React.useImperativeHandle(
@@ -138,6 +136,11 @@ const ChatArea = React.forwardRef<ChatAreaHandle, ChatAreaProps>(
           contentContainerStyle={styles.messageContainer}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           ListFooterComponent={<View style={styles.footerSpacer} />}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>まだメッセージがありません</Text>
+            </View>
+          }
           showsVerticalScrollIndicator={false}
           onScroll={updateScrollPosition}
           scrollEventThrottle={16}
@@ -180,6 +183,15 @@ const styles = StyleSheet.create({
   },
   footerSpacer: {
     height: Padding.p_24,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Padding.p_24,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: Color.colorTextSecondary,
   },
   scrollButton: {
     position: "absolute",

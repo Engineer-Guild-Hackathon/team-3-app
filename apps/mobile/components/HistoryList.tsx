@@ -1,9 +1,8 @@
 import * as React from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View, Text } from "react-native";
 
 import HistoryItem from "./HistoryItem";
 import type { ChatHistoryEntry } from "./types";
-import { getSampleHistoryEntries } from "../utils/sampleData";
 
 export type HistoryListProps = {
   entries: ChatHistoryEntry[];
@@ -12,13 +11,19 @@ export type HistoryListProps = {
 };
 
 const HistoryList = ({ entries, activeId, onSelect }: HistoryListProps) => {
-  // データが空の場合はサンプル履歴を用意して UI を保つ
-  const fallbackEntries = React.useMemo(() => getSampleHistoryEntries(), []);
-  const data = entries.length > 0 ? entries : fallbackEntries;
+  const data = entries;
   const handlePress = React.useCallback(
     (entry: ChatHistoryEntry) => () => onSelect?.(entry),
     [onSelect],
   );
+
+  if (data.length === 0) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>履歴はまだありません</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -56,6 +61,16 @@ const styles = StyleSheet.create({
   separator: {
     // 項目間の余白を保つスペーサー
     height: 8,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 24,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#64748b",
   },
 });
 

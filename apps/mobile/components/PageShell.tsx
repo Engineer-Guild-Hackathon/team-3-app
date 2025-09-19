@@ -12,7 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import Header from "./Header";
 import CreateIcon from "../assets/Create.svg";
-import HomeIcon from "../assets/Home.svg";
+import HomeIcon from "../assets/home.svg";
 import SettingIcon from "../assets/Setting.svg";
 import { Color, StyleVariable } from "../GlobalStyles";
 import { defaultHeaderConfig } from "./headerConfigs";

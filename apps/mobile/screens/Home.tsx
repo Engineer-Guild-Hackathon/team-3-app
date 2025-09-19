@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View, Text } from "react-native";
 
 import PageShell from "../components/PageShell";
 import { homeHeaderConfig } from "../components/headerConfigs";
@@ -8,35 +8,33 @@ import HomeMainArea from "../components/HomeMainArea";
 import { StyleVariable } from "../GlobalStyles";
 import type { ChatHistoryEntry } from "../components/types";
 import type { RootStackParamList } from "../navigation/types";
-import { buildHistoryEntry } from "../utils/chatHistory";
 import { useChatStore } from "../contexts/chatStore";
+import { useAuth } from "../contexts/auth";
 
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 type HomeScreenProps = NativeStackScreenProps<RootStackParamList, "Home">;
 
 const Home = ({ navigation }: HomeScreenProps) => {
-  const { threads } = useChatStore();
+  const { threads, histories, createThread } = useChatStore();
+  const { profile, statusMessage, isAuthenticated, login } = useAuth();
 
-  const historyEntries = React.useMemo<ChatHistoryEntry[]>(
-    () => threads.map((thread) => buildHistoryEntry(thread)),
-    [threads],
-  );
-
-  const [activeHistoryId, setActiveHistoryId] = React.useState<string>(
-    () => historyEntries[0]?.id ?? "",
-  );
+  const [activeHistoryId, setActiveHistoryId] = React.useState<string>("");
 
   React.useEffect(() => {
-    if (historyEntries.length === 0) {
+    if (histories.length === 0) {
       setActiveHistoryId("");
       return;
     }
-    const exists = historyEntries.some((entry) => entry.id === activeHistoryId);
-    if (!exists) {
-      setActiveHistoryId(historyEntries[0]?.id ?? "");
+    if (!activeHistoryId) {
+      setActiveHistoryId(histories[0]?.id ?? "");
+      return;
     }
-  }, [historyEntries, activeHistoryId]);
+    const exists = histories.some((entry) => entry.id === activeHistoryId);
+    if (!exists) {
+      setActiveHistoryId(histories[0]?.id ?? "");
+    }
+  }, [histories, activeHistoryId]);
 
   const handleSelectHistory = React.useCallback(
     (entry: ChatHistoryEntry) => {
@@ -46,9 +44,27 @@ const Home = ({ navigation }: HomeScreenProps) => {
     [navigation],
   );
 
-  const handleCreateNewChat = React.useCallback(() => {
-    navigation.navigate("Chat", { createNew: true });
-  }, [navigation]);
+  const handleCreateNewChat = React.useCallback(async () => {
+    if (!isAuthenticated) {
+      await login();
+      return;
+    }
+    const created = await createThread();
+    if (created) {
+      setActiveHistoryId(created.id);
+      navigation.navigate("Chat", { threadId: created.id });
+    }
+  }, [createThread, isAuthenticated, login, navigation]);
+
+  const userName = React.useMemo(() => {
+    if (profile?.displayName && profile.displayName.trim().length > 0) {
+      return profile.displayName;
+    }
+    if (profile?.email && profile.email.trim().length > 0) {
+      return profile.email;
+    }
+    return "ゲスト";
+  }, [profile]);
 
   return (
     <PageShell
@@ -57,9 +73,10 @@ const Home = ({ navigation }: HomeScreenProps) => {
       contentStyle={styles.shellContent}
       drawer={
         <HistoryDrawer
-          entries={historyEntries}
+          entries={histories}
           activeId={activeHistoryId}
           onSelect={handleSelectHistory}
+          onCreatePress={handleCreateNewChat}
         />
       }
       drawerWidth={320}
@@ -71,11 +88,17 @@ const Home = ({ navigation }: HomeScreenProps) => {
       >
         <View style={[styles.mainarea, styles.mainareaFlexBox]}>
           <View style={[styles.contentarea, styles.mainareaFlexBox]}>
-            <HomeMainArea
-              historyEntries={historyEntries}
-              activeHistoryId={activeHistoryId}
-              onSelectHistory={handleSelectHistory}
-            />
+            <View style={styles.homeContentStack}>
+              <HomeMainArea
+                userName={userName}
+                historyEntries={histories}
+                activeHistoryId={activeHistoryId}
+                onSelectHistory={handleSelectHistory}
+              />
+              {statusMessage ? (
+                <Text style={styles.statusText}>{statusMessage}</Text>
+              ) : null}
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -110,6 +133,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     zIndex: 0,
     overflow: "hidden",
+  },
+  homeContentStack: {
+    flex: 1,
+    gap: StyleVariable.spaceMd,
+  },
+  statusText: {
+    fontSize: 14,
+    color: "#475569",
   },
 });
 
