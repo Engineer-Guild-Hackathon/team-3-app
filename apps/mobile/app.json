@@ -27,6 +27,7 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
+      "devAuthCode": "dev:user-demo@example.com|Dev User",
       "apiBase": "https://webappforhackathon-b6guerb9bcgee4h2.centralus-01.azurewebsites.net",
       "deviceId": "dev-simulator",
       "pushDemoToken": "dummy-token",

@@ -7,8 +7,6 @@ import ChatMainArea from "../components/ChatMainArea";
 import HistoryDrawer from "../components/HistoryDrawer";
 import PageShell from "../components/PageShell";
 import { chatHeaderConfig } from "../components/headerConfigs";
-import { HEADER_ACTION_IDS } from "../components/headerConstants";
-import type { HeaderConfig } from "../components/headerTypes";
 import type { ChatHistoryEntry } from "../components/types";
 import type { RootStackParamList } from "../navigation/types";
 import { useChatStore } from "../contexts/chatStore";
@@ -101,21 +99,8 @@ const Chat = ({ navigation, route }: ChatScreenProps) => {
     [activeThreadId, isAuthenticated, login, sendMessage, startNewChat],
   );
 
-  const headerConfig = React.useMemo<HeaderConfig>(() => {
-    const actions = (chatHeaderConfig.actions ?? []).map((action) => {
-      if (action.actionId === HEADER_ACTION_IDS.navigateHome) {
-        return {
-          ...action,
-          onPress: () => navigation.navigate("Home"),
-        };
-      }
-      return { ...action };
-    });
-
-    return {
-      ...chatHeaderConfig,
-      actions,
-    };
+  const handleNavigateHome = React.useCallback(() => {
+    navigation.navigate("Home");
   }, [navigation]);
 
   const keyboardVerticalOffset = React.useMemo(() => {
@@ -134,7 +119,7 @@ const Chat = ({ navigation, route }: ChatScreenProps) => {
 
   return (
     <PageShell
-      headerConfig={headerConfig}
+      headerConfig={chatHeaderConfig}
       rightActionVariant="home"
       contentStyle={styles.shellContent}
       drawer={
@@ -147,6 +132,7 @@ const Chat = ({ navigation, route }: ChatScreenProps) => {
       }
       drawerWidth={320}
       onCreateNewChat={handleStartNewChat}
+      onNavigateHome={handleNavigateHome}
     >
       <KeyboardAvoidingView
         style={styles.chatFlexBox}
@@ -157,7 +143,6 @@ const Chat = ({ navigation, route }: ChatScreenProps) => {
           messages={activeThread?.messages ?? []}
           onSendMessage={handleSendMessage}
         />
-        {statusMessage ? <Text style={styles.statusText}>{statusMessage}</Text> : null}
       </KeyboardAvoidingView>
     </PageShell>
   );
@@ -172,11 +157,6 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingBottom: 16,
     gap: 8,
-  },
-  statusText: {
-    alignSelf: "center",
-    fontSize: 13,
-    color: "#475569",
   },
 });
 

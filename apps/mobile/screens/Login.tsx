@@ -1,11 +1,11 @@
 import * as React from 'react';
-import { ImageBackground, Pressable, StyleSheet, Text, View, ActivityIndicator } from 'react-native';
+import { ImageBackground, Pressable, StyleSheet, Text, View, ActivityIndicator, Image } from 'react-native';
 
 import { Color, FontFamily, FontSize, StyleVariable } from '../GlobalStyles';
 import { useAuth } from '../contexts/auth';
 
 const LoginScreen = () => {
-  const { login, statusMessage, isInitializing } = useAuth();
+  const { login, isInitializing } = useAuth();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const handleLogin = React.useCallback(async () => {
@@ -18,7 +18,7 @@ const LoginScreen = () => {
     }
   }, [isSubmitting, login]);
 
-  const disabled = isSubmitting || isInitializing;
+  const isBusy = isSubmitting || isInitializing;
 
   return (
     <ImageBackground
@@ -28,8 +28,12 @@ const LoginScreen = () => {
     >
       <View style={styles.overlay}>
         <View style={styles.header}>
-          <Text style={styles.logoText}>SPAR</Text>
-          <Text style={styles.subtitle}>Socratic Pupil Ask &amp; Reflect</Text>
+          <Image
+            source={require('../assets/SPARLogo.png')}
+            style={styles.logo}
+            accessibilityRole="image"
+            accessibilityLabel="SPAR"
+          />
         </View>
         <View style={styles.card}>
           <Text style={styles.title}>ようこそ！</Text>
@@ -40,19 +44,23 @@ const LoginScreen = () => {
             accessibilityRole="button"
             style={({ pressed }) => [
               styles.loginButton,
-              disabled ? styles.loginButtonDisabled : null,
-              pressed && !disabled ? styles.loginButtonPressed : null,
+              isBusy ? styles.loginButtonDisabled : null,
+              pressed && !isBusy ? styles.loginButtonPressed : null,
             ]}
             onPress={handleLogin}
-            disabled={disabled}
+            disabled={isBusy}
           >
-            {disabled ? (
-              <ActivityIndicator color={Color.colorWhite} />
+            {isBusy ? (
+              <ActivityIndicator color={Color.colorWhite} size="small" />
             ) : (
-              <Text style={styles.loginLabel}>Google でログイン</Text>
+              <View style={styles.loginContent}>
+                <View style={styles.loginIconWrapper}>
+                  <Image source={require('../assets/google-icon.png')} style={styles.loginIcon} />
+                </View>
+                <Text style={styles.loginLabel}>Google でログイン</Text>
+              </View>
             )}
           </Pressable>
-          {statusMessage ? <Text style={styles.status}>{statusMessage}</Text> : null}
         </View>
       </View>
     </ImageBackground>
@@ -75,17 +83,12 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
+    gap: 12,
   },
-  logoText: {
-    fontSize: 48,
-    color: Color.colorBrandPrimary,
-    fontFamily: FontFamily.roundedMplus1c,
-    fontWeight: '800',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: Color.colorTextSecondary,
-    marginTop: 8,
+  logo: {
+    width: 360,
+    height: 140,
+    resizeMode: 'contain',
   },
   card: {
     width: '100%',
@@ -96,7 +99,7 @@ const styles = StyleSheet.create({
     gap: 24,
   },
   title: {
-    fontSize: 24,
+    fontSize: 32,
     fontFamily: FontFamily.roundedMplus1c,
     color: Color.colorTextPrimary,
     textAlign: 'center',
@@ -119,16 +122,29 @@ const styles = StyleSheet.create({
   loginButtonDisabled: {
     backgroundColor: Color.colorDimgray,
   },
-  loginLabel: {
-    fontSize: FontSize.size_18,
-    color: Color.colorWhite,
-    fontFamily: FontFamily.notoSansJPRegular,
-    fontWeight: '600',
+  loginContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  status: {
-    fontSize: 12,
-    color: Color.colorDimgray,
-    textAlign: 'center',
+  loginIconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Color.colorWhite,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loginIcon: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
+  },
+  loginLabel: {
+    fontSize: FontSize.size_24,
+    color: Color.colorWhite,
+    fontFamily: FontFamily.roundedMplus1c,
+    fontWeight: '600',
   },
 });
 
