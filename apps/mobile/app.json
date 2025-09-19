@@ -27,7 +27,7 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "apiBase": "http://10.0.2.2:3000",
+      "apiBase": "http://localhost:3000",
       "devAuthCode": "dev:user-demo@example.com|Dev User",
       "deviceId": "dev-simulator",
       "pushDemoToken": "dummy-token",

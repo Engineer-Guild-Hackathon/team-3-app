@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 
 import Chat from './screens/Chat';
+import FirstSetting from './screens/FirstSetting';
 import Home from './screens/Home';
 import LoginScreen from './screens/Login';
 import Setting from './screens/Setting';
@@ -39,9 +40,13 @@ const AppContent = () => {
       <ChatStoreProvider>
         <NavigationContainer>
           <Stack.Navigator
-            initialRouteName="Home"
+            initialRouteName="FirstSetting"
             screenOptions={{ headerShown: false }}
           >
+            <Stack.Screen
+              name="FirstSetting"
+              component={FirstSetting}
+            />
             <Stack.Screen
               name="Home"
               component={Home}
