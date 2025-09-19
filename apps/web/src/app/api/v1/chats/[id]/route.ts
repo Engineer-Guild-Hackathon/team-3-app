@@ -10,7 +10,9 @@ export function OPTIONS(request: Request) {
   return buildPreflightResponse(request);
 }
 
-const patchHandler = async (request: NextRequest, { params }: { params: { id: string } }) => {
+type RouteParams = Record<string, string | string[] | undefined>;
+
+const patchHandler = async (request: NextRequest, context: { params: Promise<RouteParams> }) => {
   const cors = createCorsContext(request);
   const rejection = rejectIfDisallowed(cors);
   if (rejection) return rejection;
@@ -24,7 +26,9 @@ const patchHandler = async (request: NextRequest, { params }: { params: { id: st
     return errorResponse('service_unavailable', 'Database is not available.', { status: 503, cors });
   }
 
-  const chatId = params?.id?.trim();
+  const resolvedParams = await context.params;
+  const rawId = resolvedParams?.id;
+  const chatId = Array.isArray(rawId) ? rawId[0]?.trim() : rawId?.trim?.() ?? rawId;
   if (!chatId) {
     return errorResponse('invalid_request', 'Chat ID is required.', { status: 400, cors });
   }
@@ -80,7 +84,7 @@ const patchHandler = async (request: NextRequest, { params }: { params: { id: st
   }
 };
 
-const deleteHandler = async (request: NextRequest, { params }: { params: { id: string } }) => {
+const deleteHandler = async (request: NextRequest, context: { params: Promise<RouteParams> }) => {
   const cors = createCorsContext(request);
   const rejection = rejectIfDisallowed(cors);
   if (rejection) return rejection;
@@ -94,7 +98,9 @@ const deleteHandler = async (request: NextRequest, { params }: { params: { id: s
     return errorResponse('service_unavailable', 'Database is not available.', { status: 503, cors });
   }
 
-  const chatId = params?.id?.trim();
+  const resolvedParams = await context.params;
+  const rawId = resolvedParams?.id;
+  const chatId = Array.isArray(rawId) ? rawId[0]?.trim() : rawId?.trim?.() ?? rawId;
   if (!chatId) {
     return errorResponse('invalid_request', 'Chat ID is required.', { status: 400, cors });
   }

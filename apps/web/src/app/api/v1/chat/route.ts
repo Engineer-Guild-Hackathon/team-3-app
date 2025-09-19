@@ -200,7 +200,7 @@ function isValidPayload(payload: unknown): payload is ChatRequestPayload {
   if (typeof payload !== 'object' || payload === null) return false;
   const body = payload as Record<string, unknown>;
   const history = body.history;
-  if (!Array.isArray(history) || history.length === 0) return false;
+  if (!Array.isArray(history)) return false;
   if (!history.every(isConversationTurn)) return false;
   return true;
 }

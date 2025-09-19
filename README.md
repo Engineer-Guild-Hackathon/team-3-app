@@ -163,27 +163,27 @@ Taskfile の `task test` でも同じコマンドを実行できます。CI (`ta
 
 ### API（チャット基盤 / フェーズA）
 
-- `POST /api/chat` — LLM実行 + 永続化（要認証）
+- `POST /api/v1/chat` — LLM実行 + 永続化（要認証）
   - 入力: `{ chatId: number, subject: string, theme: string, description?: string, clientSessionId?: string, history: {assistant: string, user: string}[] }`
-  - 出力: `{ ok: true, result: { chatId: number, answer: string, status: -1|0|1 } }`
+  - 出力: `{ chatId: string, answer: string, status: -1|0|1 }`
   - 備考: `clientSessionId`（UIのセッションUUID）指定時は `chats/messages` へ保存されます。
 
-- `GET /api/chats` — 自分のチャット一覧（要認証）
+- `GET /api/v1/chats` — 自分のチャット一覧（要認証）
   - クエリ: `?limit=1..200`（省略時50）
   - 出力: `{ ok: true, result: { items: [{ id, title, status, createdAt, updatedAt }] } }`
 
-- `POST /api/chats` — チャット作成（要認証）
+- `POST /api/v1/chats` — チャット作成（要認証）
   - 入力: `{ title?: string, subjectId?: string }`
   - 出力: `{ ok: true, result: { id, title, status, createdAt, updatedAt } }`
 
-- `PATCH /api/chats/:id` — タイトル変更（要認証）
+- `PATCH /api/v1/chats/:id` — タイトル変更（要認証）
   - 入力: `{ title: string }`
   - 出力: `{ ok: true, result: { id, title, updatedAt } }`
 
-- `DELETE /api/chats/:id` — チャット削除（要認証）
+- `DELETE /api/v1/chats/:id` — チャット削除（要認証）
   - 出力: `{ ok: true, result: { id } }`
 
-- `GET /api/chats/:id/messages` — メッセージ履歴（要認証・所有者のみ）
+- `GET /api/v1/chats/:id/messages` — メッセージ履歴（要認証・所有者のみ）
   - クエリ: `?limit=1..1000`（省略時全件 / createdAt 昇順）
   - 出力: `{ ok: true, result: { chatId, items: [{ id, role, content, createdAt }] } }`
 
@@ -191,10 +191,10 @@ Taskfile の `task test` でも同じコマンドを実行できます。CI (`ta
 
 ### フロントエンドの挙動（フェーズA）
 
-- サイドバー一覧は `GET /api/chats` の結果を優先して表示（LocalStorage はフォールバック）。
-- チャット画面の履歴は `GET /api/chats/:id/messages` を初回のみ取得し、以後はクライアント側に保持。
+- サイドバー一覧は `GET /api/v1/chats` の結果を優先して表示（LocalStorage はフォールバック）。
+- チャット画面の履歴は `GET /api/v1/chats/:id/messages` を初回のみ取得し、以後はクライアント側に保持。
 - 401 は `/login` に誘導。404（存在しない/権限なし）は画面中央に案内を表示し、トップ遷移/新規作成の導線を提供。
-- 新規作成/名称変更/削除は `/api/chats` の CRUD を呼び出し、UIへ反映します。
+- 新規作成/名称変更/削除は `/api/v1/chats` の CRUD を呼び出し、UIへ反映します。
 
 ### パフォーマンス
 

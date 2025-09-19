@@ -36,12 +36,21 @@ export async function authorize(request: Request, cors: CorsContext, options: Au
         if (!id) return null;
         return {
           userId: String(id),
-          scopes: ['cookie-session'],
+          scopes: ['profile:read', 'chat:rw', 'push:register', 'iap:verify'],
         };
       },
     });
     return { type: 'ok', user };
   } catch (error: unknown) {
+    if (process.env.NODE_ENV !== 'production') {
+      const authHeader = request.headers.get('authorization');
+      console.warn('[authorize] failed', {
+        scope: options.requiredScope,
+        hasAuthHeader: Boolean(authHeader),
+        authHeader: authHeader ? authHeader.slice(0, 16) + '...' : null,
+        err: error instanceof Error ? error.message : String(error),
+      });
+    }
     if (isUnauthorizedError(error)) {
       return {
         type: 'error',

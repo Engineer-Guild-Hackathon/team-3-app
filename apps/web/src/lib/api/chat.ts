@@ -1,7 +1,7 @@
 // チャット関連のAPIラッパ（日本語コメント）
 
 import { endpoints } from "@/lib/api/endpoints";
-import type { RunChatInput, RunChatOutput } from "@/types/llm";
+import type { ChatTriState, RunChatInput, RunChatOutput } from "@/types/llm";
 import { apiFetchJson, ApiClient } from "@/lib/http";
 
 export type ChatListItem = {
@@ -20,8 +20,9 @@ export type ChatListItem = {
  * チャット一覧の取得
  */
 export async function listChats(client?: ApiClient): Promise<ChatListItem[]> {
-  const data = await (client ? createFetch(client) : apiFetchJson)<{ result?: { items?: ChatListItem[] } }>(endpoints.chats());
-  return (data?.result?.items ?? []) as ChatListItem[];
+  const exec = client ? createFetch(client) : apiFetchJson;
+  const data = await exec<{ items?: ChatListItem[] }>(endpoints.chats());
+  return (data?.items ?? []) as ChatListItem[];
 }
 
 /**
@@ -32,12 +33,12 @@ export async function createChat(
   client?: ApiClient,
 ) {
   const exec = client ? createFetch(client) : apiFetchJson;
-  const data = await exec<{ result: ChatListItem }>(endpoints.chats(), {
+  const data = await exec<ChatListItem>(endpoints.chats(), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input ?? {}),
   });
-  return data.result;
+  return data as ChatListItem;
 }
 
 export async function renameChat(id: string, title: string, client?: ApiClient) {
@@ -61,12 +62,17 @@ export async function deleteChat(id: string, client?: ApiClient) {
  */
 export async function runChat(payload: RunChatInput, client?: ApiClient): Promise<{ result: RunChatOutput; meta?: any }> {
   const exec = client ? createFetch(client) : apiFetchJson;
-  const data = await exec<{ result: RunChatOutput; meta?: any }>(endpoints.chat(), {
+  const data = await exec<{ chatId?: string; answer?: string; status?: ChatTriState; meta?: any }>(endpoints.chat(), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  return { result: data.result, meta: (data as any).meta };
+  const result: RunChatOutput = {
+    chatId: payload.chatId,
+    answer: String(data.answer ?? ""),
+    status: (data.status ?? 0) as ChatTriState,
+  };
+  return { result, meta: data.meta };
 }
 
 function createFetch(client: ApiClient) {
