@@ -20,11 +20,12 @@
 ### `GET /api/v1/auth/start`
 - **用途**: モバイルアプリ側で OIDC + PKCE を開始する際に呼び出します。返却された `authorizationEndpoint` にブラウザ遷移し、`code_challenge` に `S256` を指定して PKCE コードを生成します。
 - **レスポンス項目**
-  - `authorizationEndpoint`…IdP の `/authorize` URL。AuthSession などで使用。
-  - `clientId`…モバイル専用クライアント ID。
-  - `redirectUri`…アプリのカスタムスキーム（例: `spar://auth/callback`）。
-  - `scope`…要求する OpenID スコープ。初期値は `openid profile email`。
-  - `codeChallengeMethod`…常に `S256`。
+- `authorizationEndpoint`…IdP の `/authorize` URL。AuthSession などで使用。
+- `clientId`…モバイル専用クライアント ID。
+- `redirectUri`…アプリのカスタムスキーム（例: `spar://auth/callback`）。
+- `scope`…要求する OpenID スコープ。初期値は `openid profile email`。
+- `codeChallengeMethod`…常に `S256`。
+- `devMode`…`BFF_AUTH_DEV_MODE=1` の場合に `true`。モバイル側で dev コード (`dev:email`) を受け付けるか判断するために利用。
 - **認証**: 不要。
 - **想定エラー**: 設定不足の場合は 500 `configuration_error`。
 
