@@ -27,12 +27,20 @@ const HistoryItem = ({
   isActive = false,
   onPress,
 }: HistoryItemProps) => {
+  // 時刻表示を日付/時間に分割し再利用
   const timestampParts = React.useMemo(
     () => formatHistoryTimestampParts(timestamp),
     [timestamp],
   );
+  // 未読の返信待ち状態かどうかを簡潔に判定
+  const showUnreadIndicator = unread && lastAssistantStatus === -1;
+  const accessibilityLabel = React.useMemo(
+    () => `${title}${unread ? " 未読" : ""}`,
+    [title, unread],
+  );
 
   return (
+    // 履歴一件分をタップ可能なカードとして表示
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
@@ -42,11 +50,11 @@ const HistoryItem = ({
       ]}
       android_ripple={{ color: Color.colorChatTapped }}
       accessibilityRole="button"
-      accessibilityLabel={`${title}${unread ? " 未読" : ""}`}
+      accessibilityLabel={accessibilityLabel}
     >
       <View style={styles.content}>
         <View style={styles.titleRow}>
-          {unread && lastAssistantStatus === -1 ? (
+          {showUnreadIndicator ? (
             <UnreadDot style={styles.unreadDot} width={8} height={8} />
           ) : null}
           <Text numberOfLines={1} style={styles.title}>

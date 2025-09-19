@@ -20,6 +20,15 @@ const ChatMainArea = ({
   const [draft, setDraft] = React.useState("");
   const chatAreaRef = React.useRef<ChatAreaHandle>(null);
   const [isChatAtBottom, setIsChatAtBottom] = React.useState(true);
+  // 最新メッセージまでスクロールする汎用処理を集約
+  const scrollToLatest = React.useCallback(() => {
+    chatAreaRef.current?.scrollToEnd({ animated: true });
+  }, []);
+  const ensureLatestVisible = React.useCallback(() => {
+    requestAnimationFrame(scrollToLatest);
+    setTimeout(scrollToLatest, 180);
+  }, [scrollToLatest]);
+  // アシスタント側に保留中メッセージが存在するかをキャッシュ
   const hasPendingAssistant = React.useMemo(
     () =>
       messages.some(
@@ -37,6 +46,7 @@ const ChatMainArea = ({
     }
     return null;
   }, [messages]);
+  // 入力欄の状態を会話の進行状況から自動判定
   const resolvedStatus: InputAreaStatus = React.useMemo(() => {
     if (inputStatus) {
       return inputStatus;
@@ -50,6 +60,7 @@ const ChatMainArea = ({
     return "default";
   }, [hasPendingAssistant, inputStatus, latestAssistantStatus]);
 
+  // 送信後に入力中テキストをリセットしてから親へ通知
   const handleSend = (text: string) => {
     setDraft("");
     onSendMessage?.(text);
@@ -61,21 +72,18 @@ const ChatMainArea = ({
     }
   }, [resolvedStatus]);
 
+  // スクロール位置の情報を ChatArea から受け取り最下部かどうかを保持
   const handleChatBottomStateChange = React.useCallback((atBottom: boolean) => {
     setIsChatAtBottom(atBottom);
   }, []);
 
+  // 最下部を表示中のみフォーカス時に最新メッセージへスクロール
   const handleInputFocus = React.useCallback(() => {
     if (!isChatAtBottom) {
       return;
     }
-    requestAnimationFrame(() => {
-      chatAreaRef.current?.scrollToEnd({ animated: true });
-    });
-    setTimeout(() => {
-      chatAreaRef.current?.scrollToEnd({ animated: true });
-    }, 180);
-  }, [isChatAtBottom]);
+    ensureLatestVisible();
+  }, [ensureLatestVisible, isChatAtBottom]);
 
   return (
     <View style={styles.container}>

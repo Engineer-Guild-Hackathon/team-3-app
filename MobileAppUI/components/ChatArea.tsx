@@ -24,6 +24,7 @@ export type ChatAreaHandle = {
   scrollToEnd: (options?: { animated?: boolean }) => void;
 };
 
+// 底まで到達したとみなすオフセットの許容値
 const SCROLL_BOTTOM_THRESHOLD = 32;
 
 const ChatArea = React.forwardRef<ChatAreaHandle, ChatAreaProps>(
@@ -32,9 +33,19 @@ const ChatArea = React.forwardRef<ChatAreaHandle, ChatAreaProps>(
     const isAtBottomRef = React.useRef(true);
     const [isAtBottom, setIsAtBottom] = React.useState(true);
 
+    // データ未指定時はサンプルを提示して UI を確認しやすくする
     const fallbackMessages = React.useMemo(() => getSampleChatMessages(), []);
     const data = messages.length > 0 ? messages : fallbackMessages;
 
+    // 共通のスクロール末尾処理を一箇所で管理
+    const scrollToLatest = React.useCallback(
+      (animated = true) => {
+        listRef.current?.scrollToEnd({ animated });
+      },
+      [],
+    );
+
+    // 最終メッセージの状態変化を検知するためのキーを生成
     const lastMessageKey = React.useMemo(() => {
       if (data.length === 0) {
         return "empty";
@@ -49,10 +60,10 @@ const ChatArea = React.forwardRef<ChatAreaHandle, ChatAreaProps>(
       ref,
       () => ({
         scrollToEnd: ({ animated = true } = {}) => {
-          listRef.current?.scrollToEnd({ animated });
+          scrollToLatest(animated);
         },
       }),
-      [],
+      [scrollToLatest],
     );
 
     React.useEffect(() => {
@@ -64,18 +75,19 @@ const ChatArea = React.forwardRef<ChatAreaHandle, ChatAreaProps>(
         return;
       }
       const frame = requestAnimationFrame(() => {
-        listRef.current?.scrollToEnd({ animated: true });
+        scrollToLatest(true);
       });
       const timeout = setTimeout(() => {
-        listRef.current?.scrollToEnd({ animated: true });
+        scrollToLatest(true);
       }, 180);
 
       return () => {
         cancelAnimationFrame(frame);
         clearTimeout(timeout);
       };
-    }, [lastMessageKey]);
+    }, [lastMessageKey, scrollToLatest]);
 
+    // ユーザーのスクロール位置から最下部にいるかを判定
     const updateScrollPosition = React.useCallback(
       (event: NativeSyntheticEvent<NativeScrollEvent>) => {
         const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
@@ -93,18 +105,19 @@ const ChatArea = React.forwardRef<ChatAreaHandle, ChatAreaProps>(
 
     const handleContentSizeChange = React.useCallback(() => {
       if (isAtBottomRef.current) {
-        listRef.current?.scrollToEnd({ animated: true });
+        scrollToLatest(true);
       }
-    }, []);
+    }, [scrollToLatest]);
 
     const handleScrollToBottom = React.useCallback(() => {
-      listRef.current?.scrollToEnd({ animated: true });
+      scrollToLatest(true);
       if (!isAtBottomRef.current) {
         isAtBottomRef.current = true;
         setIsAtBottom(true);
       }
-    }, []);
+    }, [scrollToLatest]);
 
+    // メッセージごとのラッパーに揃えた余白を付与
     const renderItem = React.useCallback<ListRenderItem<ChatMessage>>(
       ({ item }) => (
         <View style={styles.itemContainer}>
@@ -131,6 +144,7 @@ const ChatArea = React.forwardRef<ChatAreaHandle, ChatAreaProps>(
           onContentSizeChange={handleContentSizeChange}
         />
         {isAtBottom ? null : (
+          // 最新メッセージへ戻るためのショートカットボタン
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="scroll to latest message"

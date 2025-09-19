@@ -11,16 +11,19 @@ export type HeaderProps = {
   config?: HeaderConfig;
 };
 
+// 個別設定が無い場合はデフォルトボタンを採用するヘルパー
 const resolveButton = (
   button?: HeaderButtonConfig | null,
   fallback?: HeaderButtonConfig | null,
 ): HeaderButtonConfig | null => button ?? fallback ?? null;
 
+// アクション一覧についても同様にデフォルトを補完
 const resolveActions = (
   actions?: HeaderButtonConfig[],
   fallback?: HeaderButtonConfig[],
 ): HeaderButtonConfig[] => actions ?? fallback ?? [];
 
+// ロゴ設定は部分的な上書きに対応できるようマージ
 const resolveLogo = (
   logo?: HeaderLogoConfig,
   fallback?: HeaderLogoConfig,

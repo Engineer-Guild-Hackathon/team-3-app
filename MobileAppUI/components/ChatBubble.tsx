@@ -16,26 +16,32 @@ export type ChatBubbleProps = {
 };
 
 const ChatBubble = ({ message }: ChatBubbleProps) => {
-  const isUser = message.author === "user";
+  const { author, text, pending, createdAt } = message;
+  // 投稿者種別によって配置や色を切り替え
+  const isUser = author === "user";
+  // タイムスタンプを人が読みやすい形式へ変換
   const timestampLabel = React.useMemo(
-    () => formatBubbleTimestamp(message.createdAt),
-    [message.createdAt],
+    () => formatBubbleTimestamp(createdAt),
+    [createdAt],
+  );
+  // スタイル配列を useMemo 化して再描画時の差分計算を抑制
+  const containerStyle = React.useMemo(
+    () => [styles.container, isUser ? styles.containerRight : styles.containerLeft],
+    [isUser],
+  );
+  const bubbleStyle = React.useMemo(
+    () => [styles.bubble, isUser ? styles.userBubble : styles.assistantBubble],
+    [isUser],
+  );
+  const textStyle = React.useMemo(
+    () => [styles.text, isUser ? styles.userText : styles.assistantText, pending ? styles.pendingText : null],
+    [isUser, pending],
   );
 
   return (
-    <View style={[styles.container, isUser ? styles.containerRight : styles.containerLeft]}>
-      <View
-        style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}
-      >
-        <Text
-          style={[
-            styles.text,
-            isUser ? styles.userText : styles.assistantText,
-            message.pending ? styles.pendingText : null,
-          ]}
-        >
-          {message.text}
-        </Text>
+    <View style={containerStyle}>
+      <View style={bubbleStyle}>
+        <Text style={textStyle}>{text}</Text>
       </View>
       <Text style={styles.timestamp}>{timestampLabel}</Text>
     </View>

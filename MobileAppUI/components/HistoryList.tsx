@@ -12,11 +12,17 @@ export type HistoryListProps = {
 };
 
 const HistoryList = ({ entries, activeId, onSelect }: HistoryListProps) => {
+  // データが空の場合はサンプル履歴を用意して UI を保つ
   const fallbackEntries = React.useMemo(() => getSampleHistoryEntries(), []);
   const data = entries.length > 0 ? entries : fallbackEntries;
+  const handlePress = React.useCallback(
+    (entry: ChatHistoryEntry) => () => onSelect?.(entry),
+    [onSelect],
+  );
 
   return (
     <ScrollView
+      // シンプルな縦スクロールで履歴一覧を提示
       style={styles.scroll}
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
@@ -26,7 +32,7 @@ const HistoryList = ({ entries, activeId, onSelect }: HistoryListProps) => {
           <HistoryItem
             {...item}
             isActive={item.id === activeId}
-            onPress={() => onSelect?.(item)}
+            onPress={handlePress(item)}
           />
           {index < data.length - 1 ? <View style={styles.separator} /> : null}
         </React.Fragment>
@@ -48,6 +54,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   separator: {
+    // 項目間の余白を保つスペーサー
     height: 8,
   },
 });

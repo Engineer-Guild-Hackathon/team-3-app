@@ -11,13 +11,13 @@ export type NewChatButtonProps = {
 };
 
 const NewChatButton = ({ label = "新しい質問", onPress }: NewChatButtonProps) => {
+  // ボタン全体をタップ領域とし、アイコンは視覚的アクセントとして表示
   return (
     <Pressable style={styles.container} onPress={onPress} accessibilityRole="button">
-      <View style={styles.iconWrapper}>
+      <View style={styles.iconWrapper} pointerEvents="none">
         <IconButton
           Icon={CreateIcon}
           accessibilityLabel={label}
-          onPress={onPress}
           containerStyle={styles.iconButton}
         />
       </View>

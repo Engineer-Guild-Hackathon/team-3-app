@@ -1,5 +1,7 @@
 import type { ChatThread } from "../components/types";
 
+// ストア初期化や UI モック用に利用するサンプル会話データ
+
 export const SAMPLE_THREADS: ChatThread[] = [
   {
     id: "thread-1",

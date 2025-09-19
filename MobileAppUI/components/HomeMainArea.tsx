@@ -24,6 +24,7 @@ const HomeMainArea = ({
   activeHistoryId,
   onSelectHistory,
 }: HomeMainAreaProps) => {
+  // ホーム画面中央領域の構成要素をまとめて配置
   return (
     <View style={styles.container}>
       <UserInfo name={userName} />
@@ -48,6 +49,7 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
   },
   statsPlaceholder: {
+    // 統計表示スペースが未実装であることを明示
     height: 156,
     borderRadius: StyleVariable.radiusMd,
     backgroundColor: Color.colorBlack,

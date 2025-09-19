@@ -35,8 +35,14 @@ const InputArea = React.forwardRef<TextInput, InputAreaProps>(
     onFocus,
   }, ref) => {
     const inputRef = React.useRef<TextInput>(null);
+    // value を受け取っているかで制御コンポーネントとして扱うかを判断
     const isControlled = value !== undefined;
     const [internalValue, setInternalValue] = React.useState(defaultValue);
+    // ネイティブ側の入力フィールドを確実にクリアする処理を共通化
+    const clearNativeInput = React.useCallback(() => {
+      inputRef.current?.clear();
+      inputRef.current?.setNativeProps({ text: "" });
+    }, []);
 
     React.useImperativeHandle(ref, () => inputRef.current as TextInput);
 
@@ -58,6 +64,7 @@ const InputArea = React.forwardRef<TextInput, InputAreaProps>(
       onChangeText?.(text);
     };
 
+    // 完了以外の状態のみ送信を許可し、送信後は即座にリセット
     const handleSend = () => {
       if (status !== "default") {
         return;
@@ -69,8 +76,7 @@ const InputArea = React.forwardRef<TextInput, InputAreaProps>(
       if (!isControlled) {
         setInternalValue("");
       }
-      inputRef.current?.clear();
-      inputRef.current?.setNativeProps({ text: "" });
+      clearNativeInput();
     };
 
     React.useEffect(() => {
@@ -78,11 +84,11 @@ const InputArea = React.forwardRef<TextInput, InputAreaProps>(
         if (!isControlled) {
           setInternalValue("");
         }
-        inputRef.current?.clear();
-        inputRef.current?.setNativeProps({ text: "" });
+        clearNativeInput();
       }
-    }, [status, isControlled]);
+    }, [clearNativeInput, status, isControlled]);
 
+    // 完了状態では入力欄自体を隠す
     if (isCompleted) {
       return null;
     }

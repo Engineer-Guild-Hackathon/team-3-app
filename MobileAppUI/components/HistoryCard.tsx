@@ -19,6 +19,7 @@ const HistoryCard = ({
   heightMode,
   height,
 }: HistoryCardProps) => {
+  // Card コンポーネントに履歴リストを内包させる薄いラッパー
   return (
     <Card title="履歴" heightMode={heightMode} height={height}>
       <HistoryList entries={entries} activeId={activeId} onSelect={onSelect} />
