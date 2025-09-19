@@ -82,16 +82,30 @@ const MAX_PROMPT_SHIELD_DOCUMENTS = parseIntEnv("AZURE_CONTENT_SAFETY_MAX_DOCUME
 // 明白な漏洩/昇格/無視指示のヒューリスティック（前段でfail-closed）
 const HEURISTIC_RULES: { pattern: RegExp; mitigation: string }[] = [
   { pattern: /system\s*prompt/i, mitigation: "ユーザーがシステムプロンプトの開示を要求しています" },
-  { pattern: /debug\s*mode/i, mitigation: "ユーザーがデバッグモードを装って権限昇格を試みています" },
-  { pattern: /ignore\s+(all|any|the)\s+(previous|prior)\s+instructions?/i, mitigation: "以前の指示を無視するよう求めています" },
-  { pattern: /reveal\s+(the\s+)?(system|initial)\s+instructions?/i, mitigation: "システム指示の開示要求が検知されました" },
-  { pattern: /\b(jailbreak|unfiltered|uncensored)\b/i, mitigation: "ポリシー回避につながるキーワードが含まれています" },
-  { pattern: /デバッグモード|デバッグ\s*モード/i, mitigation: "日本語でデバッグモードへの移行を要求しています" },
-  { pattern: /システム(設定|プロンプト).*(表示|教えて|開示)/i, mitigation: "システム設定やプロンプトの開示要求が検知されました" },
-  { pattern: /(全て|すべて)の?指示を(無視|忘れて)/i, mitigation: "指示の無視を求めています" },
-  // 追加の典型句
+  { pattern: /reveal\s+(the\s+)?(system|initial|hidden)\s+instructions?/i, mitigation: "システム指示の開示要求が検知されました" },
   { pattern: /(機密|内蔵|内部)プロンプト(を)?(見せて|表示|開示)/i, mitigation: "内部/機密プロンプトの開示要求です" },
-  { pattern: /(ポリシー|制限)を(無視|解除)/i, mitigation: "ポリシー無視・解除の要求です" },
+  { pattern: /システム(設定|プロンプト).*(表示|教えて|開示)/i, mitigation: "システム設定やプロンプトの開示要求が検知されました" },
+
+  { pattern: /debug\s*mode/i, mitigation: "ユーザーがデバッグモードを装って権限昇格を試みています" },
+  { pattern: /developer\s*mode/i, mitigation: "ユーザーがデベロッパーモードを要求しています" },
+  { pattern: /デバッグモード|デバッグ\s*モード/i, mitigation: "日本語でデバッグモードへの移行を要求しています" },
+
+  { pattern: /ignore\s+(all|any|the)\s+(previous|prior)\s+instructions?/i, mitigation: "以前の指示を無視するよう求めています" },
+  { pattern: /(forget|discard)\s+(all\s+)?(previous|earlier)\s+instructions?/i, mitigation: "過去の指示を破棄するよう求めています" },
+  { pattern: /(全て|すべて)の?指示を(無視|忘れて)/i, mitigation: "指示の無視を求めています" },
+  { pattern: /(指示|ルール)を?無視して?/i, mitigation: "ガードレールを無視する指示が検知されました" },
+
+  { pattern: /\b(jail\s*break|do\s*anything\s*now|dan\b)/i, mitigation: "既知のジェイルブレイク手法が検出されました" },
+  { pattern: /\b(no|without)\s+(safety|filter|filtering|guardrails)\b/i, mitigation: "安全フィルタの無効化要求が検知されました" },
+  { pattern: /無制限|検閲なし|フィルターなし/i, mitigation: "無制限モードを要求しています" },
+  { pattern: /\b(role|pretend|simulate)\b.+(system|root|developer|admin)/i, mitigation: "権限昇格を促すロール指示が含まれています" },
+
+  { pattern: /(bypass|override)\s+(safety|filter|content policy)/i, mitigation: "安全対策を回避するよう求めています" },
+  { pattern: /(ポリシー|制限)を(無視|解除|回避)/i, mitigation: "ポリシー無視・解除の要求です" },
+  { pattern: /(検閲|制限)なしで答えて/i, mitigation: "制限解除の要求が検知されました" },
+
+  { pattern: /(新しい|秘密の)システム指示をここから開始|###\s*system\s*override/i, mitigation: "システムプロンプトの上書きを試みています" },
+  { pattern: /execute\s+shell|run\s+cmd/i, mitigation: "不正なコマンド実行を誘導しています" },
 ];
 
 type PromptShieldAnalysis = {
