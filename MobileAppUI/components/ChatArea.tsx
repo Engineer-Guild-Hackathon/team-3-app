@@ -20,9 +20,27 @@ const ChatArea = ({ messages = [] }: ChatAreaProps) => {
 
   const data = messages.length > 0 ? messages : FALLBACK_MESSAGES;
 
+  const lastMessageKey = React.useMemo(() => {
+    if (data.length === 0) {
+      return "empty";
+    }
+    const last = data[data.length - 1];
+    return `${last.id}|${last.text}|${last.pending ? "pending" : "done"}`;
+  }, [data]);
+
   React.useEffect(() => {
-    listRef.current?.scrollToEnd({ animated: true });
-  }, [data.length]);
+    const frame = requestAnimationFrame(() => {
+      listRef.current?.scrollToEnd({ animated: true });
+    });
+    const timeout = setTimeout(() => {
+      listRef.current?.scrollToEnd({ animated: true });
+    }, 180);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timeout);
+    };
+  }, [lastMessageKey]);
 
   const renderItem = React.useCallback<ListRenderItem<ChatMessage>>(
     ({ item }) => (
@@ -42,6 +60,7 @@ const ChatArea = ({ messages = [] }: ChatAreaProps) => {
       style={styles.list}
       contentContainerStyle={styles.messageContainer}
       ItemSeparatorComponent={() => <View style={styles.separator} />}
+      ListFooterComponent={<View style={styles.footerSpacer} />}
       showsVerticalScrollIndicator={false}
     />
   );
@@ -60,6 +79,9 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: Gap.gap_10,
+  },
+  footerSpacer: {
+    height: Padding.p_24,
   },
 });
 

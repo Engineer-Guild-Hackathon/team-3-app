@@ -1,5 +1,6 @@
 import * as React from "react";
-import { Text, StyleSheet, View } from "react-native";
+import { Pressable, Text, StyleSheet, View } from "react-native";
+
 import IconButton from "./IconButton";
 import { StyleVariable, Color, FontSize, FontFamily } from "../GlobalStyles";
 import CreateIcon from "../assets/Create.svg";
@@ -11,10 +12,17 @@ export type NewChatButtonProps = {
 
 const NewChatButton = ({ label = "新しい質問", onPress }: NewChatButtonProps) => {
   return (
-    <View style={styles.container}>
-      <IconButton Icon={CreateIcon} onPress={onPress} accessibilityLabel={label} />
+    <Pressable style={styles.container} onPress={onPress} accessibilityRole="button">
+      <View style={styles.iconWrapper}>
+        <IconButton
+          Icon={CreateIcon}
+          accessibilityLabel={label}
+          onPress={onPress}
+          containerStyle={styles.iconButton}
+        />
+      </View>
       <Text style={styles.text}>{label}</Text>
-    </View>
+    </Pressable>
   );
 };
 
@@ -29,6 +37,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: StyleVariable.spaceMd,
     gap: StyleVariable.spaceMd,
+  },
+  iconWrapper: {
+    borderRadius: StyleVariable.radiusMd,
+    overflow: "hidden",
+  },
+  iconButton: {
+    paddingVertical: StyleVariable.spaceXs,
+    paddingHorizontal: StyleVariable.spaceSm,
   },
   text: {
     fontSize: FontSize.size_24,

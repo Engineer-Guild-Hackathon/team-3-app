@@ -24,6 +24,7 @@ const Chat = ({ navigation, route }: ChatScreenProps) => {
   const [activeThreadId, setActiveThreadId] = React.useState<string>(
     () => route.params?.threadId ?? SAMPLE_THREADS[0]?.id ?? "",
   );
+  const pendingReplies = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   React.useEffect(() => {
     const targetId = route.params?.threadId;
@@ -105,13 +106,56 @@ const Chat = ({ navigation, route }: ChatScreenProps) => {
         createdAt: formatTime(now),
       };
 
+      const placeholderId = `pending-${now.getTime()}`;
+      const placeholderMessage: ChatMessage = {
+        id: placeholderId,
+        author: "assistant",
+        text: "考え中・・・",
+        createdAt: formatTime(now),
+        pending: true,
+      };
+
+      const targetThreadId = activeThreadId;
+
       setThreads((prev) =>
         prev.map((thread) =>
-          thread.id === activeThreadId
-            ? { ...thread, unread: false, messages: [...thread.messages, message] }
+          thread.id === targetThreadId
+            ? {
+                ...thread,
+                unread: false,
+                messages: [...thread.messages, message, placeholderMessage],
+              }
             : thread,
         ),
       );
+
+      const replyDelay = 1200;
+      const responseText = `ご入力ありがとうございます。「${text}」について整理します。`;
+
+      const timeoutId = setTimeout(() => {
+        const responseTime = formatTime(new Date());
+        setThreads((prev) =>
+          prev.map((thread) => {
+            if (thread.id !== targetThreadId) {
+              return thread;
+            }
+            const nextMessages = thread.messages.map((msg) =>
+              msg.id === placeholderId
+                ? {
+                    ...msg,
+                    text: responseText,
+                    createdAt: responseTime,
+                    pending: false,
+                  }
+                : msg,
+            );
+            return { ...thread, messages: nextMessages };
+          }),
+        );
+        delete pendingReplies.current[placeholderId];
+      }, replyDelay);
+
+      pendingReplies.current[placeholderId] = timeoutId;
     },
     [activeThreadId],
   );
@@ -141,6 +185,13 @@ const Chat = ({ navigation, route }: ChatScreenProps) => {
     navigation.setParams({ createNew: undefined });
     handleStartNewChat();
   }, [handleStartNewChat, navigation, route.params?.createNew]);
+
+  React.useEffect(() => {
+    return () => {
+      Object.values(pendingReplies.current).forEach((timeoutId) => clearTimeout(timeoutId));
+      pendingReplies.current = {};
+    };
+  }, []);
 
   const keyboardVerticalOffset = React.useMemo(() => {
     const headerAllowance = 96;

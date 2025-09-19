@@ -11,6 +11,7 @@ export type ChatMessage = {
   author: "user" | "assistant";
   text: string;
   createdAt: string;
+  pending?: boolean;
 };
 
 export type ChatThread = {

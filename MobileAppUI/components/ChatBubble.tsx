@@ -22,7 +22,13 @@ const ChatBubble = ({ message }: ChatBubbleProps) => {
       <View
         style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}
       >
-        <Text style={[styles.text, isUser ? styles.userText : styles.assistantText]}>
+        <Text
+          style={[
+            styles.text,
+            isUser ? styles.userText : styles.assistantText,
+            message.pending ? styles.pendingText : null,
+          ]}
+        >
           {message.text}
         </Text>
       </View>
@@ -66,6 +72,9 @@ const styles = StyleSheet.create({
   },
   assistantText: {
     color: Color.colorTextPrimary,
+  },
+  pendingText: {
+    color: Color.colorDimgray,
   },
   timestamp: {
     fontSize: FontSize.size_14,
