@@ -46,7 +46,7 @@ const AuthContext = React.createContext<AuthContextValue | null>(null);
 
 const extras = Constants.expoConfig?.extra ?? {};
 const API_BASE = extras.apiBase ?? 'http://127.0.0.1:3000';
-const DEV_AUTH_CODE = extras.devAuthCode ?? null;
+const DEV_AUTH_CODE = typeof extras.devAuthCode === 'string' && extras.devAuthCode.trim().length > 0 ? extras.devAuthCode : null;
 const DEFAULT_DEVICE_ID = extras.deviceId ?? 'dev-simulator';
 const DEFAULT_PLATFORM = extras.platform ?? (Platform.OS === 'ios' ? 'ios' : 'android');
 const PUSH_DEMO_TOKEN = extras.pushDemoToken ?? 'dummy-token';
@@ -304,15 +304,34 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const login = React.useCallback(async () => {
     setStatus('認証開始...');
     try {
-      const startRaw = await apiClient.send<{ authorizationEndpoint?: string; clientId?: string; scope?: string | string[]; codeChallengeMethod?: string }>('/api/v1/auth/start');
+      const startRaw = await apiClient.send<{
+        authorizationEndpoint?: string;
+        clientId?: string;
+        scope?: string | string[];
+        codeChallengeMethod?: string;
+        redirectUri?: string;
+        devMode?: boolean;
+      }>('/api/v1/auth/start');
       const start = ensureJson(startRaw);
       const currentDeviceId = await ensureDeviceId();
-      let authorizationCode = DEV_AUTH_CODE ?? null;
+      const devModeEnabled = Boolean(start?.devMode);
+      const redirectUriFromServer =
+        typeof start?.redirectUri === 'string' && start.redirectUri.trim().length > 0
+          ? start.redirectUri.trim()
+          : null;
+      let authorizationCode = devModeEnabled ? DEV_AUTH_CODE : null;
       let codeVerifier: string | undefined;
       let state: string | undefined;
 
       if (!authorizationCode) {
-        const redirectUri = AuthSession.makeRedirectUri({ scheme: APP_SCHEME, path: 'auth/callback' });
+        const redirectUri =
+          redirectUriFromServer ?? AuthSession.makeRedirectUri({ scheme: APP_SCHEME, path: 'auth/callback' });
+        if (!start?.authorizationEndpoint) {
+          throw new Error('認証エンドポイントが設定されていません');
+        }
+        if (!start?.clientId) {
+          throw new Error('クライアントIDが設定されていません');
+        }
         const request = new AuthSession.AuthRequest({
           clientId: start?.clientId ?? '',
           scopes:

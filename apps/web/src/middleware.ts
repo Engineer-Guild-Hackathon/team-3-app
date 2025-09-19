@@ -8,6 +8,10 @@ export default withAuth({
   callbacks: {
     authorized: ({ token, req }) => {
       const pathname = req.nextUrl.pathname;
+      const method = typeof req.method === 'string' ? req.method.toUpperCase() : 'GET';
+      if (method === 'OPTIONS') {
+        return true;
+      }
       // 未認証でもアクセス可能なパス（静的アセット等）を許可
       // Next.js の public 配下はルート直下に展開されるため、拡張子を含むパスは除外
       const isPublic =
