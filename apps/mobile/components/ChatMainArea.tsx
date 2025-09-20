@@ -6,6 +6,7 @@ import { Gap, Padding, Color } from "../GlobalStyles";
 import ChatArea, { type ChatAreaHandle } from "./ChatArea";
 import InputArea, { type InputAreaStatus } from "./InputArea";
 import type { ChatMessage } from "./types";
+import { getLatestAssistantStatus } from "../utils/status";
 
 export type ChatMainAreaProps = {
   messages?: ChatMessage[];
@@ -42,16 +43,10 @@ const ChatMainArea = ({
       ),
     [messages],
   );
-  const latestAssistantStatus = React.useMemo<-1 | 0 | 1 | null>(() => {
-    for (let index = messages.length - 1; index >= 0; index -= 1) {
-      const candidate = messages[index];
-      if (candidate.author !== "assistant" || candidate.pending) {
-        continue;
-      }
-      return candidate.status ?? null;
-    }
-    return null;
-  }, [messages]);
+  const assistantStatus = React.useMemo(
+    () => getLatestAssistantStatus(messages),
+    [messages],
+  );
   // 入力欄の状態を会話の進行状況から自動判定
   const resolvedStatus: InputAreaStatus = React.useMemo(() => {
     if (inputStatus) {
@@ -60,11 +55,11 @@ const ChatMainArea = ({
     if (hasPendingAssistant) {
       return "waiting";
     }
-    if (latestAssistantStatus === 0 || latestAssistantStatus === 1) {
+    if (assistantStatus === 0 || assistantStatus === 1) {
       return "completed";
     }
     return "default";
-  }, [hasPendingAssistant, inputStatus, latestAssistantStatus]);
+  }, [assistantStatus, hasPendingAssistant, inputStatus]);
 
   // 送信後に入力中テキストをリセットしてから親へ通知
   const handleSend = (text: string) => {
@@ -94,11 +89,13 @@ const ChatMainArea = ({
   return (
     <View style={styles.container}>
       <View style={styles.messages}>
-        <ChatArea
-          ref={chatAreaRef}
-          messages={messages}
-          onBottomStateChange={handleChatBottomStateChange}
-        />
+        <View style={styles.chatArea}>
+          <ChatArea
+            ref={chatAreaRef}
+            messages={messages}
+            onBottomStateChange={handleChatBottomStateChange}
+          />
+        </View>
       </View>
       <View style={inputContainerStyle}>
         <InputArea
@@ -121,6 +118,9 @@ const styles = StyleSheet.create({
   messages: {
     flex: 1,
     paddingBottom: Gap.gap_10,
+  },
+  chatArea: {
+    flex: 1,
   },
   inputContainer: {
     paddingHorizontal: Padding.p_24,

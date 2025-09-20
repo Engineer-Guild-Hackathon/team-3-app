@@ -12,6 +12,7 @@ import {
 } from "../GlobalStyles";
 import { formatHistoryTimestampParts } from "../utils/datetime";
 import type { ChatHistoryEntry } from "./types";
+import { ASSISTANT_STATUS_META } from "../utils/status";
 
 export type HistoryItemProps = ChatHistoryEntry & {
   isActive?: boolean;
@@ -34,6 +35,10 @@ const HistoryItem = ({
   );
   // 未読の返信待ち状態かどうかを簡潔に判定
   const showUnreadIndicator = unread && lastAssistantStatus === -1;
+  const statusMeta =
+    typeof lastAssistantStatus === "number"
+      ? ASSISTANT_STATUS_META[lastAssistantStatus]
+      : undefined;
   const accessibilityLabel = React.useMemo(
     () => `${title}${unread ? " 未読" : ""}`,
     [title, unread],
@@ -60,6 +65,21 @@ const HistoryItem = ({
           <Text numberOfLines={1} style={styles.title}>
             {title}
           </Text>
+          {statusMeta ? (
+            <View
+              style={[
+                styles.statusBadge,
+                {
+                  backgroundColor: statusMeta.badgeBackground,
+                  borderColor: statusMeta.badgeBorder,
+                },
+              ]}
+            >
+              <Text style={[styles.statusText, { color: statusMeta.badgeText }]}>
+                {statusMeta.label}
+              </Text>
+            </View>
+          ) : null}
         </View>
         {snippet ? (
           <Text numberOfLines={1} style={styles.subtitle}>
@@ -118,6 +138,19 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     color: Color.colorTextPrimary,
     fontFamily: FontFamily.notoSansJPRegular,
+  },
+  statusBadge: {
+    marginLeft: Gap.gap_4,
+    borderRadius: StyleVariable.radiusMd,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: StyleVariable.spaceSm,
+    paddingVertical: StyleVariable.space4,
+  },
+  statusText: {
+    fontSize: 10,
+    fontFamily: FontFamily.notoSansJPRegular,
+    fontWeight: "600",
+    letterSpacing: 0.5,
   },
   subtitle: {
     fontSize: FontSize.size_14,
