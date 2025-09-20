@@ -41,7 +41,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   try {
     const items = await db
-      .select({ id: topics.id, name: topics.name })
+      .select({ id: topics.id, name: topics.name, description: topics.description })
       .from(topics)
       .where(eq(topics.subjectId, subjectId))
       .orderBy(asc(topics.name));

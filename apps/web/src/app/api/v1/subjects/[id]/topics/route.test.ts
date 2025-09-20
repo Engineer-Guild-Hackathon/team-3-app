@@ -18,6 +18,7 @@ vi.mock('@/db/schema', () => ({
   topics: {
     id: 'topics.id',
     name: 'topics.name',
+    description: 'topics.description',
     subjectId: 'topics.subject_id',
   },
 }));
@@ -55,7 +56,7 @@ describe('GET /api/v1/subjects/:id/topics', () => {
       type: 'ok',
       user: { userId: 'user-1', scopes: ['profile:read'], source: 'bearer', tokenType: 'access' },
     });
-    const rows = [{ id: 'topic-1', name: '確率' }];
+    const rows = [{ id: 'topic-1', name: '確率', description: '詳細' }];
     const mocks = createSelectMock(rows);
     dbRef.current = { select: mocks.select };
 

@@ -268,6 +268,7 @@ erDiagram
 | id | uuid | 必須 | gen_random_uuid() | 主キー | 0a12… |
 | subject_id | uuid | 必須 |  | 科目ID（FK） | subjects.id |
 | name | text | 必須 |  | トピック名 | 条件付き確率 |
+| description | text | 任意 |  | 補足説明・質問例 | 質問例: 「log2(8x)=5 なので 8x=5 だと思いました。なぜ違いますか。」 |
 
 - 主キー: (id)
 - 外部キー: (subject_id) → subjects(id) ON DELETE CASCADE

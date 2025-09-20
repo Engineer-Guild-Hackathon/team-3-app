@@ -2,6 +2,8 @@ import * as React from 'react';
 import * as Crypto from 'expo-crypto';
 
 import { useAuth } from './auth';
+import { useSubjectStore } from './subjectStore';
+import type { SubjectDefinition } from './subjectStore';
 import type { ChatHistoryEntry, ChatMessage, ChatThread } from '../components/types';
 import { buildHistoryEntry } from '../utils/chatHistory';
 import { numericIdFromUuid } from '../utils/id';
@@ -23,6 +25,153 @@ const extractStatus = (error: unknown): number | undefined => {
 const isUnauthorizedStatus = (status?: number): boolean => status === 401 || status === 403;
 
 const DEFAULT_CHAT_TITLE = '新しいチャット';
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: unknown): value is string {
+  return typeof value === 'string' && UUID_PATTERN.test(value);
+}
+
+function coerceUuid(value?: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+  return isUuid(value) ? value : null;
+}
+
+type SubjectTopicDefinition = SubjectDefinition['topics'][number];
+
+type TopicSelectionCandidate = {
+  subjectId: string;
+  subjectLabel: string;
+  topicId: string | null;
+  topicLabel: string | null;
+  topicDescription: string | null;
+};
+
+// ユーザー設定からランダムに割り当てる科目とテーマを決定する
+function buildTopicCandidates(
+  subjects: SubjectDefinition[],
+  savedSelections: Record<string, string[]>,
+): TopicSelectionCandidate[] {
+  const candidates: TopicSelectionCandidate[] = [];
+  const subjectMap = new Map(subjects.map((subject) => [subject.id, subject]));
+
+  Object.entries(savedSelections).forEach(([subjectId, topicIds]) => {
+    const subject = subjectMap.get(subjectId);
+    if (!subject) {
+      return;
+    }
+    const validTopics = topicIds
+      .map((topicId) => subject.topics.find((topic) => topic.id === topicId))
+      .filter((topic): topic is SubjectTopicDefinition => Boolean(topic?.description));
+    const fallbackTopics = subject.topics.filter((topic) => Boolean(topic.description));
+    const targets = validTopics.length > 0 ? validTopics : fallbackTopics;
+    if (targets.length === 0) {
+      candidates.push({
+        subjectId: subject.id,
+        subjectLabel: subject.label,
+        topicId: null,
+        topicLabel: null,
+        topicDescription: null,
+      });
+      return;
+    }
+    targets.forEach((topic) => {
+      candidates.push({
+        subjectId: subject.id,
+        subjectLabel: subject.label,
+        topicId: topic.id,
+        topicLabel: topic.label,
+        topicDescription: topic.description ?? null,
+      });
+    });
+  });
+
+  if (candidates.length === 0) {
+    subjects.forEach((subject) => {
+      const availableTopics = subject.topics.filter((topic) => Boolean(topic.description));
+      if (availableTopics.length === 0) {
+        candidates.push({
+          subjectId: subject.id,
+          subjectLabel: subject.label,
+          topicId: null,
+          topicLabel: null,
+          topicDescription: null,
+        });
+        return;
+      }
+      availableTopics.forEach((topic) => {
+        candidates.push({
+          subjectId: subject.id,
+          subjectLabel: subject.label,
+          topicId: topic.id,
+          topicLabel: topic.label,
+          topicDescription: topic.description ?? null,
+        });
+      });
+    });
+  }
+
+  return candidates;
+}
+
+function pickRandomTopicCandidate(
+  subjects: SubjectDefinition[],
+  savedSelections: Record<string, string[]>,
+): TopicSelectionCandidate | null {
+  const candidates = buildTopicCandidates(subjects, savedSelections);
+  if (candidates.length === 0) {
+    return null;
+  }
+  const index = Math.floor(Math.random() * candidates.length);
+  return candidates[index];
+}
+
+function resolveSubjectLabels(
+  subjects: SubjectDefinition[],
+  subjectId?: string | null,
+  topicId?: string | null,
+) {
+  if (!subjectId) {
+    return { subjectLabel: null, topicLabel: null, topicDescription: null };
+  }
+  const subject = subjects.find((item) => item.id === subjectId);
+  if (!subject) {
+    return { subjectLabel: null, topicLabel: null, topicDescription: null };
+  }
+  const topic = topicId ? subject.topics.find((item) => item.id === topicId) : null;
+  return {
+    subjectLabel: subject.label,
+    topicLabel: topic?.label ?? null,
+    topicDescription: topic?.description ?? null,
+  };
+}
+
+function buildChatContext(
+  subjects: SubjectDefinition[],
+  options: {
+    subjectId?: string | null;
+    topicId?: string | null;
+    title?: string | null;
+    subjectLabel?: string | null;
+    topicLabel?: string | null;
+    topicDescription?: string | null;
+  },
+) {
+  const { subjectLabel, topicLabel, topicDescription } = resolveSubjectLabels(
+    subjects,
+    options.subjectId,
+    options.topicId,
+  );
+  const fallbackTitle = options.title && options.title.trim().length > 0 ? options.title.trim() : DEFAULT_CHAT_TITLE;
+  const resolvedSubjectLabel = subjectLabel ?? options.subjectLabel ?? null;
+  const resolvedTopicLabel = topicLabel ?? options.topicLabel ?? null;
+  const resolvedDescription = topicDescription ?? options.topicDescription ?? null;
+  const subjectName = resolvedSubjectLabel ?? fallbackTitle;
+  const themeName = resolvedTopicLabel ?? resolvedSubjectLabel ?? fallbackTitle;
+  return { subjectName, themeName, description: resolvedDescription };
+}
 
 export type ChatStoreValue = {
   threads: ChatThread[];
@@ -79,6 +228,7 @@ type RunChatResponse = {
 
 export const ChatStoreProvider = ({ children }: ChatStoreProviderProps) => {
   const { apiClient, isAuthenticated, setStatus, reauthenticate } = useAuth();
+  const { subjects, savedSelections } = useSubjectStore();
   const [threads, setThreads] = React.useState<ChatThread[]>([]);
   const threadsRef = React.useRef<ChatThread[]>(threads);
   const autoIntroRequestedRef = React.useRef<Record<string, boolean>>({});
@@ -110,12 +260,25 @@ export const ChatStoreProvider = ({ children }: ChatStoreProviderProps) => {
       setThreads((prev) => {
         const next = items.map<ChatThread>((item) => {
           const existing = prev.find((thread) => thread.id === item.id);
+          const subjectId = item.subjectId ?? existing?.subjectId ?? null;
+          const topicId = item.topicId ?? existing?.topicId ?? null;
+          const { subjectLabel, topicLabel, topicDescription } = resolveSubjectLabels(
+            subjects,
+            subjectId,
+            topicId,
+          );
+          const resolvedSubjectLabel = subjectLabel ?? existing?.subjectLabel ?? null;
+          const resolvedTopicLabel = topicLabel ?? existing?.topicLabel ?? null;
+          const resolvedDescription = topicDescription ?? existing?.topicDescription ?? null;
           return {
             id: item.id,
             title: item.title && item.title.trim().length > 0 ? item.title : DEFAULT_CHAT_TITLE,
             status: item.status ?? existing?.status ?? 'in_progress',
-            subjectId: item.subjectId ?? existing?.subjectId,
-            topicId: item.topicId ?? existing?.topicId,
+            subjectId,
+            topicId,
+            subjectLabel: resolvedSubjectLabel,
+            topicLabel: resolvedTopicLabel,
+            topicDescription: resolvedDescription,
             updatedAt: item.updatedAt ?? existing?.updatedAt,
             createdAt: item.createdAt ?? existing?.createdAt,
             messages: existing?.messages ?? [],
@@ -135,7 +298,7 @@ export const ChatStoreProvider = ({ children }: ChatStoreProviderProps) => {
     } finally {
       setIsLoading(false);
     }
-  }, [apiClient, clearForSignOut, isAuthenticated, reauthenticate, setStatus]);
+  }, [apiClient, clearForSignOut, isAuthenticated, reauthenticate, setStatus, subjects]);
 
   const requestAutoIntro = React.useCallback(
     async (chatId: string, fallbackThread?: ChatThread) => {
@@ -202,15 +365,21 @@ export const ChatStoreProvider = ({ children }: ChatStoreProviderProps) => {
         const baseMessages = baseSnapshot.messages;
         const turns = messagesToTurns(baseMessages);
         const numericId = numericIdFromUuid(chatId);
+        const { subjectName, themeName, description } = buildChatContext(subjects, {
+          subjectId: baseSnapshot.subjectId,
+          topicId: baseSnapshot.topicId,
+          title: baseSnapshot.title,
+          subjectLabel: baseSnapshot.subjectLabel ?? null,
+          topicLabel: baseSnapshot.topicLabel ?? null,
+          topicDescription: baseSnapshot.topicDescription ?? null,
+        });
         const responseRaw = await apiClient.send<RunChatResponse>('/api/v1/chat', {
           method: 'POST',
           body: {
             chatId: numericId,
-            subject:
-              (baseSnapshot.title && baseSnapshot.title.trim().length > 0
-                ? baseSnapshot.title
-                : DEFAULT_CHAT_TITLE) ?? DEFAULT_CHAT_TITLE,
-            theme: '一般',
+            subject: subjectName,
+            theme: themeName,
+            description: description ?? undefined,
             clientSessionId: chatId,
             history: turns,
           },
@@ -335,7 +504,7 @@ export const ChatStoreProvider = ({ children }: ChatStoreProviderProps) => {
         autoIntroRequestedRef.current[chatId] = false;
       }
     },
-    [apiClient, isAuthenticated, reauthenticate, setErrorMessage, setStatus],
+    [apiClient, isAuthenticated, reauthenticate, setErrorMessage, setStatus, subjects],
   );
 
   const ensureMessages = React.useCallback(
@@ -417,15 +586,27 @@ export const ChatStoreProvider = ({ children }: ChatStoreProviderProps) => {
       }
       setErrorMessage(null);
       try {
-        const payload = {
-          title: options?.title,
-        };
+        const selection = pickRandomTopicCandidate(subjects, savedSelections);
+        const payload: Record<string, unknown> = {};
+        if (options?.title) {
+          payload.title = options.title;
+        }
+        const candidateSubjectId = coerceUuid(selection?.subjectId ?? null);
+        const candidateTopicId = coerceUuid(selection?.topicId ?? null);
+        if (candidateSubjectId) {
+          payload.subjectId = candidateSubjectId;
+        }
+        if (candidateTopicId) {
+          payload.topicId = candidateTopicId;
+        }
         const raw = await apiClient.send<{
           id: string;
           title?: string;
           status?: 'in_progress' | 'ended';
           createdAt?: string;
           updatedAt?: string;
+          subjectId?: string | null;
+          topicId?: string | null;
         }>('/api/v1/chats', {
           method: 'POST',
           body: payload,
@@ -434,6 +615,12 @@ export const ChatStoreProvider = ({ children }: ChatStoreProviderProps) => {
         const created = ensureJson(raw);
         const resolvedId = created?.id ?? Crypto.randomUUID();
         const pendingCreatedAt = nowAsIsoString();
+        const resolvedSubjectId = coerceUuid(created?.subjectId ?? null) ?? candidateSubjectId;
+        const resolvedTopicId = coerceUuid(created?.topicId ?? null) ?? candidateTopicId;
+        const resolvedLabels = resolveSubjectLabels(subjects, resolvedSubjectId, resolvedTopicId);
+        const subjectLabel = resolvedLabels.subjectLabel ?? selection?.subjectLabel ?? null;
+        const topicLabel = resolvedLabels.topicLabel ?? selection?.topicLabel ?? null;
+        const topicDescription = resolvedLabels.topicDescription ?? selection?.topicDescription ?? null;
         const introPlaceholderId = `assistant-intro-${resolvedId}`;
         const introPlaceholder: ChatMessage = {
           id: introPlaceholderId,
@@ -448,6 +635,11 @@ export const ChatStoreProvider = ({ children }: ChatStoreProviderProps) => {
           title:
             created?.title && created.title.trim().length > 0 ? created.title : DEFAULT_CHAT_TITLE,
           status: created?.status ?? 'in_progress',
+          subjectId: resolvedSubjectId,
+          topicId: resolvedTopicId,
+          subjectLabel,
+          topicLabel,
+          topicDescription,
           createdAt: created?.createdAt ?? pendingCreatedAt,
           updatedAt: created?.updatedAt ?? pendingCreatedAt,
           messages: [introPlaceholder],
@@ -468,7 +660,16 @@ export const ChatStoreProvider = ({ children }: ChatStoreProviderProps) => {
         return null;
       }
     },
-    [apiClient, isAuthenticated, reauthenticate, requestAutoIntro, setErrorMessage, setStatus],
+    [
+      apiClient,
+      isAuthenticated,
+      reauthenticate,
+      requestAutoIntro,
+      savedSelections,
+      setErrorMessage,
+      setStatus,
+      subjects,
+    ],
   );
 
   const updateThreadTitle = React.useCallback((chatId: string, title: string) => {
@@ -525,6 +726,11 @@ export const ChatStoreProvider = ({ children }: ChatStoreProviderProps) => {
             status: 'in_progress',
             updatedAt: now,
             createdAt: now,
+            subjectId: targetSnapshot?.subjectId ?? null,
+            topicId: targetSnapshot?.topicId ?? null,
+            subjectLabel: targetSnapshot?.subjectLabel ?? null,
+            topicLabel: targetSnapshot?.topicLabel ?? null,
+            topicDescription: targetSnapshot?.topicDescription ?? null,
             messagesLoaded: true,
           };
           return [...prev, newThread];
@@ -543,15 +749,21 @@ export const ChatStoreProvider = ({ children }: ChatStoreProviderProps) => {
       try {
         const turns = messagesToTurns(requestMessages);
         const numericId = numericIdFromUuid(chatId);
+        const { subjectName, themeName, description } = buildChatContext(subjects, {
+          subjectId: targetSnapshot?.subjectId,
+          topicId: targetSnapshot?.topicId,
+          title: targetSnapshot?.title,
+          subjectLabel: targetSnapshot?.subjectLabel ?? null,
+          topicLabel: targetSnapshot?.topicLabel ?? null,
+          topicDescription: targetSnapshot?.topicDescription ?? null,
+        });
         const responseRaw = await apiClient.send<RunChatResponse>('/api/v1/chat', {
           method: 'POST',
           body: {
             chatId: numericId,
-            subject:
-              (targetSnapshot?.title && targetSnapshot.title.trim().length > 0
-                ? targetSnapshot.title
-                : DEFAULT_CHAT_TITLE) ?? DEFAULT_CHAT_TITLE,
-            theme: '一般',
+            subject: subjectName,
+            theme: themeName,
+            description: description ?? undefined,
             clientSessionId: chatId,
             history: turns,
           },
@@ -578,6 +790,11 @@ export const ChatStoreProvider = ({ children }: ChatStoreProviderProps) => {
               status: status === -1 ? 'in_progress' : 'ended',
               updatedAt: assistantMessage.createdAt,
               createdAt: targetSnapshot?.createdAt ?? now,
+              subjectId: targetSnapshot?.subjectId ?? null,
+              topicId: targetSnapshot?.topicId ?? null,
+              subjectLabel: targetSnapshot?.subjectLabel ?? null,
+              topicLabel: targetSnapshot?.topicLabel ?? null,
+              topicDescription: targetSnapshot?.topicDescription ?? null,
               messagesLoaded: true,
             };
             return [...prev, newThread];
@@ -621,6 +838,11 @@ export const ChatStoreProvider = ({ children }: ChatStoreProviderProps) => {
               status: 'in_progress',
               updatedAt: failMessage.createdAt,
               createdAt: targetSnapshot?.createdAt ?? now,
+              subjectId: targetSnapshot?.subjectId ?? null,
+              topicId: targetSnapshot?.topicId ?? null,
+              subjectLabel: targetSnapshot?.subjectLabel ?? null,
+              topicLabel: targetSnapshot?.topicLabel ?? null,
+              topicDescription: targetSnapshot?.topicDescription ?? null,
               messagesLoaded: true,
             };
             return [...prev, newThread];
@@ -644,7 +866,7 @@ export const ChatStoreProvider = ({ children }: ChatStoreProviderProps) => {
         setStatus('メッセージ送信に失敗しました');
       }
     },
-    [apiClient, isAuthenticated, reauthenticate, setStatus, threads],
+    [apiClient, isAuthenticated, reauthenticate, setStatus, subjects, threads],
   );
 
   React.useEffect(() => {
