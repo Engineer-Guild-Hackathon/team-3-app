@@ -116,10 +116,15 @@ const ChatMainArea = ({
                     styles.statusBadge,
                     {
                       backgroundColor: statusMeta.badgeBackground,
-                      borderColor: statusMeta.badgeBorder,
                     },
                   ]}
                 >
+                  <View
+                    style={[
+                      styles.statusDot,
+                      { backgroundColor: statusMeta.badgeText },
+                    ]}
+                  />
                   <Text style={[styles.statusText, { color: statusMeta.badgeText }]}>
                     {statusMeta.label}
                   </Text>
@@ -179,22 +184,22 @@ const styles = StyleSheet.create({
   },
   infoWrapper: {
     paddingHorizontal: Padding.p_18,
-    paddingTop: 12,
+    paddingTop: 10,
     paddingBottom: Gap.gap_8,
   },
   infoCard: {
     borderRadius: StyleVariable.radiusLg,
-    backgroundColor: "rgba(246,249,255,0.95)",
+    backgroundColor: "rgba(248, 251, 255, 0.96)",
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(148, 163, 184, 0.25)",
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: Padding.p_18,
     shadowColor: "rgba(15, 23, 42, 0.08)",
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 16,
     shadowOpacity: 1,
-    elevation: 6,
-    gap: Gap.gap_8,
+    elevation: 5,
+    gap: Gap.gap_6,
   },
   infoHeaderRow: {
     flexDirection: "row",
@@ -209,10 +214,24 @@ const styles = StyleSheet.create({
   },
   statusBadge: {
     marginLeft: StyleVariable.spaceSm,
-    paddingHorizontal: StyleVariable.spaceSm,
+    paddingHorizontal: StyleVariable.spaceMd,
     paddingVertical: 4,
     borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: StyleVariable.space4,
+    shadowColor: "rgba(15, 23, 42, 0.15)",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Color.colorBrandPrimary,
   },
   statusText: {
     fontSize: 11,
@@ -229,18 +248,18 @@ const styles = StyleSheet.create({
   metaChip: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: StyleVariable.spaceSm,
-    paddingVertical: StyleVariable.space4,
-    borderRadius: StyleVariable.radiusMd,
-    backgroundColor: "rgba(148, 163, 184, 0.12)",
+    paddingHorizontal: StyleVariable.spaceMd,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(148, 163, 184, 0.16)",
     gap: Gap.gap_4,
   },
   metaLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: Color.colorTextSecondary,
     fontFamily: FontFamily.notoSansJPRegular,
     textTransform: "uppercase",
-    letterSpacing: 0.4,
+    letterSpacing: 0.6,
   },
   metaValue: {
     fontSize: 12,

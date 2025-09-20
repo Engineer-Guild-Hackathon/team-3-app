@@ -173,22 +173,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   messageContainer: {
-    paddingHorizontal: Padding.p_18,
-    paddingVertical: 12,
+    paddingHorizontal: Padding.p_24,
+    paddingVertical: Padding.p_18,
   },
   itemContainer: {
     alignSelf: "stretch",
   },
   separator: {
-    height: Gap.gap_8,
+    height: Gap.gap_10,
   },
   footerSpacer: {
-    height: Padding.p_18,
+    height: Padding.p_24,
   },
   emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: Padding.p_18,
+    paddingVertical: Padding.p_24,
   },
   emptyText: {
     fontSize: 14,

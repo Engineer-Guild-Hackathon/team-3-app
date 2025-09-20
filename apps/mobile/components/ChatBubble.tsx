@@ -62,8 +62,8 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   bubble: {
-    paddingHorizontal: Padding.p_18,
-    paddingVertical: Padding.p_10,
+    paddingHorizontal: Padding.p_24,
+    paddingVertical: 12,
     borderRadius: StyleVariable.radiusLg,
   },
   userBubble: {
