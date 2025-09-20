@@ -1,8 +1,10 @@
 "use client";
 
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, MessageSquare, ChevronLeft, ChevronRight, User, Pencil, Trash2 } from 'lucide-react';
+import { Plus, MessageSquare, ChevronLeft, ChevronRight, User, Pencil, Trash2, Timer, RefreshCw, CheckCircle2 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { ChatSession as CoreSession } from "@/types/chat";
+import { getLatestAssistantStatus, ASSISTANT_STATUS_META, type AssistantStatusKey } from "@/lib/chat/status";
 
 type Props = {
   sessions: CoreSession[];
@@ -16,13 +18,40 @@ type Props = {
   onNavigateToProfile?: () => void;
 };
 
+const SIDEBAR_STATUS_STYLES: Record<AssistantStatusKey, { badgeClass: string; icon: LucideIcon; iconClass: string; buttonClass: string }> = {
+  [-1]: {
+    badgeClass: 'text-sky-700 bg-sky-500/10 border-sky-500/25 shadow-md shadow-sky-500/15',
+    icon: Timer,
+    iconClass: 'text-sky-600',
+    buttonClass: 'border-sky-500/30 bg-sky-500/10',
+  },
+  [0]: {
+    badgeClass: 'text-amber-700 bg-amber-500/10 border-amber-500/25 shadow-md shadow-amber-500/15',
+    icon: RefreshCw,
+    iconClass: 'text-amber-600',
+    buttonClass: 'border-amber-500/30 bg-amber-500/10',
+  },
+  [1]: {
+    badgeClass: 'text-emerald-700 bg-emerald-500/10 border-emerald-500/25 shadow-md shadow-emerald-500/15',
+    icon: CheckCircle2,
+    iconClass: 'text-emerald-600',
+    buttonClass: 'border-emerald-500/30 bg-emerald-500/10',
+  },
+};
+
 export default function ChatSidebar({ sessions, activeId, onSelectChat, onNewChat, onRenameChat, onDeleteChat, isExpanded, onToggleExpanded, onNavigateToProfile }: Props) {
-  const chatSessions = sessions.map((s) => ({
-    id: s.id,
-    title: s.title || '(無題)',
-    lastMessage: s.messages?.[s.messages.length - 1]?.content ?? '',
-    timestamp: (() => { try { return new Date(s.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch { return ''; } })(),
-  }));
+  const chatSessions = sessions.map((s) => {
+    const statusKey = getLatestAssistantStatus(s.messages);
+    return {
+      id: s.id,
+      title: s.title || '(無題)',
+      lastMessage: s.messages?.[s.messages.length - 1]?.content ?? '',
+      timestamp: (() => { try { return new Date(s.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch { return ''; } })(),
+      statusKey,
+      statusMeta: statusKey != null ? ASSISTANT_STATUS_META[statusKey] : undefined,
+      statusStyle: statusKey != null ? SIDEBAR_STATUS_STYLES[statusKey] : undefined,
+    };
+  });
 
   return (
     <motion.div
@@ -63,50 +92,61 @@ export default function ChatSidebar({ sessions, activeId, onSelectChat, onNewCha
                   <div className="h-full overflow-y-auto scrollbar-hide">
                     <div className="p-2 space-y-2">
                       {chatSessions.length > 0 ? (
-                        chatSessions.map((session) => (
-                          <motion.div key={session.id} className="relative">
-                            <motion.div
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => onSelectChat(session.id)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
-                                  onSelectChat(session.id);
-                                }
-                              }}
-                              whileHover={{ y: -2 }}
-                              whileTap={{ y: 0 }}
-                              className={`group w-full text-left p-3 rounded-xl backdrop-blur-xl border transition-all duration-200 cursor-pointer ${activeId === session.id ? 'bg-blue-500/20 border-blue-500/30 shadow-lg shadow-blue-500/10' : 'bg-white/5 border-white/10 hover:bg-white/10 shadow-lg shadow-black/5'}`}
-                            >
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="text-sm font-medium text-gray-800 truncate">{session.title}</div>
-                                  <div className="text-xs text-gray-500 truncate">{session.lastMessage || '...'}</div>
+                        chatSessions.map((session) => {
+                          const StatusIcon = session.statusStyle?.icon;
+                          return (
+                            <motion.div key={session.id} className="relative">
+                              <motion.div
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => onSelectChat(session.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    onSelectChat(session.id);
+                                  }
+                                }}
+                                whileHover={{ y: -2 }}
+                                whileTap={{ y: 0 }}
+                                className={`group w-full text-left p-3 rounded-xl backdrop-blur-xl border transition-all duration-200 cursor-pointer ${activeId === session.id ? 'bg-blue-500/20 border-blue-500/30 shadow-lg shadow-blue-500/10' : 'bg-white/5 border-white/10 hover:bg-white/10 shadow-lg shadow-black/5'}`}
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <div className="text-sm font-medium text-gray-800 truncate">{session.title}</div>
+                                      {session.statusMeta && session.statusStyle && StatusIcon && (
+                                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[11px] font-semibold whitespace-nowrap backdrop-blur-sm transition-all duration-200 ${session.statusStyle.badgeClass}`}>
+                                          <StatusIcon className="w-3 h-3" />
+                                          <span>{session.statusMeta.label}</span>
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-xs text-gray-500 truncate">{session.lastMessage || '...'}</div>
+                                  </div>
+                                  <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); onRenameChat(session.id); }}
+                                      className="p-1 rounded-lg hover:bg-white/30 text-gray-500"
+                                      aria-label="チャット名を変更"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); onDeleteChat(session.id); }}
+                                      className="p-1 rounded-lg hover:bg-red-100 text-red-500"
+                                      aria-label="チャットを削除"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                  <div className="text-[10px] text-gray-400 flex-shrink-0 group-hover:hidden">{session.timestamp}</div>
                                 </div>
-                                <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); onRenameChat(session.id); }}
-                                    className="p-1 rounded-lg hover:bg-white/30 text-gray-500"
-                                    aria-label="チャット名を変更"
-                                  >
-                                    <Pencil className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); onDeleteChat(session.id); }}
-                                    className="p-1 rounded-lg hover:bg-red-100 text-red-500"
-                                    aria-label="チャットを削除"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                                <div className="text-[10px] text-gray-400 flex-shrink-0 group-hover:hidden">{session.timestamp}</div>
-                              </div>
+                              </motion.div>
                             </motion.div>
-                          </motion.div>
-                        ))
+                          );
+                        })
                       ) : (
                         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.2, ease: [0.4, 0, 0.2, 1] } }} className="text-center py-12">
                           <MessageSquare className="w-8 h-8 text-gray-400 mx-auto mb-3" />
@@ -120,11 +160,23 @@ export default function ChatSidebar({ sessions, activeId, onSelectChat, onNewCha
               </motion.div>
             ) : (
               <motion.div key="history-collapsed" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.3, delay: 0.15, ease: [0.4, 0, 0.2, 1] } }} exit={{ opacity: 0, transition: { duration: 0.2, ease: [0.4, 0, 0.2, 1] } }} className="flex-1 flex flex-col justify-start space-y-2 overflow-y-auto scrollbar-hide">
-                {chatSessions.length > 0 && chatSessions.map((session) => (
-                  <motion.button key={session.id} onClick={() => onSelectChat(session.id)} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className={`w-8 h-8 rounded-xl flex-shrink-0 backdrop-blur-xl border border-white/10 hover:bg-white/10 transition-all duration-200 shadow-lg shadow-black/5 flex items-center justify-center ${activeId === session.id ? 'bg-blue-500/20 border-blue-500/30' : 'bg-white/5'}`}>
-                    <MessageSquare className="w-4 h-4 text-gray-500" />
-                  </motion.button>
-                ))}
+                {chatSessions.length > 0 && chatSessions.map((session) => {
+                  const buttonAccent = !session.statusStyle || activeId === session.id ? '' : session.statusStyle.buttonClass;
+                  const iconClass = session.statusStyle ? session.statusStyle.iconClass : 'text-gray-500';
+                  const title = session.statusMeta ? `ステータス: ${session.statusMeta.label}` : undefined;
+                  return (
+                    <motion.button
+                      key={session.id}
+                      onClick={() => onSelectChat(session.id)}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      title={title}
+                      className={`w-8 h-8 rounded-xl flex-shrink-0 backdrop-blur-xl border border-white/10 hover:bg-white/10 transition-all duration-200 shadow-lg shadow-black/5 flex items-center justify-center ${activeId === session.id ? 'bg-blue-500/20 border-blue-500/30' : `bg-white/5 ${buttonAccent}`}`}
+                    >
+                      <MessageSquare className={`w-4 h-4 ${iconClass}`} />
+                    </motion.button>
+                  );
+                })}
               </motion.div>
             )}
           </AnimatePresence>
