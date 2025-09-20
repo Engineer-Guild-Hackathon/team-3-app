@@ -51,7 +51,7 @@ CheckboxTextRow.displayName = "CheckboxTextRow";
 
 const styles = StyleSheet.create({
   content: {
-    alignItems: "flex-end",
+    alignItems: "center",
   },
   text: {
     flexShrink: 1,
