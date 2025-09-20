@@ -142,6 +142,8 @@ const Chat = ({ navigation, route }: ChatScreenProps) => {
         <ChatMainArea
           messages={activeThread?.messages ?? []}
           onSendMessage={handleSendMessage}
+          subjectLabel={activeThread?.subjectLabel ?? null}
+          topicLabel={activeThread?.topicLabel ?? null}
         />
       </KeyboardAvoidingView>
     </PageShell>

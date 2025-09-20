@@ -126,8 +126,9 @@ const styles = StyleSheet.create({
     backgroundColor: Color.colorSurfaceGlass,
     flexDirection: "row",
     alignItems: "center",
-    padding: Padding.p_10,
-    gap: Gap.gap_10,
+    paddingVertical: Gap.gap_6,
+    paddingHorizontal: Padding.p_18,
+    gap: Gap.gap_8,
   },
   containerWaiting: {
     backgroundColor: Color.colorRoleAssistant,
@@ -135,9 +136,10 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     borderRadius: Border.br_4,
-    padding: StyleVariable.spaceSm,
+    paddingVertical: StyleVariable.spaceSm,
+    paddingHorizontal: StyleVariable.spaceSm,
     fontFamily: FontFamily.notoSansJPRegular,
-    fontSize: FontSize.size_18,
+    fontSize: 16,
   },
   inputWaiting: {
     color: Color.colorDimgray,

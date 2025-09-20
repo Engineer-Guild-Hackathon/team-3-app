@@ -47,7 +47,11 @@ const PageShellIcon = () => {
       <Header />
       <View style={styles.body}>
         <View style={styles.chatArea}>
-          <ChatMainArea messages={messages} />
+          <ChatMainArea
+            messages={messages}
+            subjectLabel="数学"
+            topicLabel="確率"
+          />
         </View>
         <View style={styles.drawerArea}>
           <HistoryDrawer entries={historyEntries} activeId={historyEntries[0]?.id} />

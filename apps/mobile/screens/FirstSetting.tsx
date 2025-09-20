@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Image, ImageBackground, StyleSheet, Text, View } from "react-native";
+import { Image, ImageBackground, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import SelectionCard from "../components/SelectionCard";
@@ -68,7 +68,11 @@ const FirstSetting = ({ navigation }: FirstSettingScreenProps) => {
       resizeMode="cover"
       style={styles.background}
     >
-      <View style={styles.overlay}>
+      <ScrollView
+        style={styles.overlayScroll}
+        contentContainerStyle={styles.overlayContent}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.header}>
           <Image
             source={require("../assets/SPARLogo.png")}
@@ -95,6 +99,7 @@ const FirstSetting = ({ navigation }: FirstSettingScreenProps) => {
               title: "分野",
               heightMode: "flex",
               items: checkboxItems,
+              contentContainerStyle: styles.topicContent,
             }}
             storeButtnoProps={{
               onPress: handleSave,
@@ -106,7 +111,7 @@ const FirstSetting = ({ navigation }: FirstSettingScreenProps) => {
           />
           <Text style={styles.note}>後から設定画面でいつでも変更できます。</Text>
         </View>
-      </View>
+      </ScrollView>
     </ImageBackground>
   );
 };
@@ -117,8 +122,11 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  overlay: {
+  overlayScroll: {
     flex: 1,
+  },
+  overlayContent: {
+    flexGrow: 1,
     paddingHorizontal: 24,
     paddingVertical: 48,
     justifyContent: "center",
@@ -162,6 +170,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignSelf: "stretch",
     minHeight: 0,
+  },
+  topicContent: {
+    paddingBottom: 32,
   },
   note: {
     marginTop: 16,

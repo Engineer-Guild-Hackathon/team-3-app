@@ -20,7 +20,7 @@ export type StoreButtnoProps = {
   testID?: string;
 };
 
-const StoreButtno = React.forwardRef<Pressable, StoreButtnoProps>(
+const StoreButtno = React.forwardRef<React.ElementRef<typeof Pressable>, StoreButtnoProps>(
   (
     {
       label = "保存",

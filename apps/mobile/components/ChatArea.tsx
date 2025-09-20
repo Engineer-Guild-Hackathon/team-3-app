@@ -13,6 +13,7 @@ import {
 import { Color, Gap, Padding, StyleVariable } from "../GlobalStyles";
 import ChatBubble from "./ChatBubble";
 import type { ChatMessage } from "./types";
+import { normalizeAssistantStatus } from "../utils/status";
 import ScrollDown from "../assets/ScrollDown.svg";
 
 export type ChatAreaProps = {
@@ -50,7 +51,7 @@ const ChatArea = React.forwardRef<ChatAreaHandle, ChatAreaProps>(
       }
       const last = data[data.length - 1];
       const pendingKey = last?.pending ? "pending" : "done";
-      const statusKey = last?.status ?? "unknown";
+      const statusKey = normalizeAssistantStatus(last?.status) ?? "unknown";
       return `${last?.id ?? "unknown"}|${last?.text ?? ""}|${pendingKey}|${statusKey}`;
     }, [data]);
 

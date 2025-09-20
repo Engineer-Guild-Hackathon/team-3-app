@@ -1,4 +1,5 @@
 import type { ChatHistoryEntry, ChatThread } from "../components/types";
+import { normalizeAssistantStatus } from "./status";
 
 export const buildHistoryEntry = (thread: ChatThread): ChatHistoryEntry => {
   const lastMessage = thread.messages[thread.messages.length - 1];
@@ -13,6 +14,8 @@ export const buildHistoryEntry = (thread: ChatThread): ChatHistoryEntry => {
     timestamp,
     unread: isAssistantLast,
     lastAssistantStatus:
-      isAssistantLast && !lastMessage?.pending ? lastMessage?.status : undefined,
+      isAssistantLast && !lastMessage?.pending
+        ? normalizeAssistantStatus(lastMessage?.status)
+        : undefined,
   };
 };
