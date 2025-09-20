@@ -34,18 +34,23 @@ RUN npm run build
 # Runner (本番/ステージング)
 FROM node:22-alpine AS runner
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
-WORKDIR /app
-COPY --from=builder /app/apps/web/.next/standalone ./apps/web
-COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=builder /app/apps/web/public ./apps/web/public
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/package-lock.json ./package-lock.json
-COPY --from=builder /app/node_modules ./node_modules
-# プロンプトテンプレートはアプリ配下に配置
-COPY --from=builder /app/apps/web/prompts ./apps/web/prompts
-# Drizzle のマイグレーション実行に必要なファイル郡（SQL と実行スクリプト）を同梱
-COPY --from=builder /app/drizzle ./apps/web/drizzle
-COPY --from=builder /app/scripts ./apps/web/scripts
-WORKDIR /app/apps/web
+
+# 日本語コメント: CWD を server.js と static/public がある場所にする
+WORKDIR /app/web
+
+# 日本語コメント: standalone 出力一式を /app/web 直下に配置
+# （ビルダー側の出力が apps/web 配下なら、コピー元は apps/web のままでOK）
+COPY --from=builder /app/apps/web/.next/standalone ./
+COPY --from=builder /app/apps/web/.next/static     ./.next/static
+COPY --from=builder /app/apps/web/public           ./public
+
+# 日本語コメント: アプリが相対参照する資材があれば同じ階層へ
+COPY --from=builder /app/apps/web/prompts  ./prompts
+COPY --from=builder /app/drizzle           ./drizzle
+COPY --from=builder /app/scripts           ./scripts
+
+# （必要なら）node_modules を残す。ただし standalone は基本同梱なので通常は不要。
+# COPY --from=builder /app/node_modules ./node_modules
+
 EXPOSE 3000
-CMD ["node","apps/web/server.js"]
+CMD ["node","server.js"]
