@@ -11,7 +11,7 @@ import { useSession } from 'next-auth/react';
 type Props = {
   chatSessions: ChatSession[];
   currentChatId?: string | null;
-  onCreateChat: (opts?: { subjectId?: string; topicId?: string; prefTopicName?: string }) => void;
+  onCreateChat: (opts?: { subjectId?: string; topicId?: string; prefTopicName?: string; prefTopicDescription?: string }) => void;
   onSelectChat: (id: string) => void;
   onLogout: () => void;
 };
@@ -41,7 +41,7 @@ export default function Profile({ chatSessions, currentChatId = null, onCreateCh
         transition={{ duration: 0.5 }}
         className="w-full max-w-6xl h-full flex flex-col backdrop-blur-xl bg-white/5 border border-white/10 rounded-3xl shadow-2xl shadow-black/10 overflow-hidden p-8 before:absolute before:inset-0 before:rounded-3xl before:bg-gradient-to-br before:from-white/5 before:to-transparent before:pointer-events-none relative"
       >
-        <div className="relative z-10 flex flex-col h-full">
+        <div className="relative z-10 flex flex-col h-full overflow-y-auto">
           {/* Header */}
           <div className="flex items-center justify-between flex-shrink-0 mb-6">
             <div className="flex items-center gap-4">
