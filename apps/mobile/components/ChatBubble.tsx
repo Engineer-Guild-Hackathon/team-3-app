@@ -73,8 +73,8 @@ const styles = StyleSheet.create({
     backgroundColor: Color.colorRoleAssistant,
   },
   text: {
-    fontSize: FontSize.size_18,
-    lineHeight: 28,
+    fontSize: 16,
+    lineHeight: 24,
     fontFamily: FontFamily.notoSansJPRegular,
   },
   userText: {
@@ -88,8 +88,8 @@ const styles = StyleSheet.create({
     color: Color.colorDimgray,
   },
   timestamp: {
-    fontSize: FontSize.size_14,
-    lineHeight: 22,
+    fontSize: 12,
+    lineHeight: 18,
     fontFamily: FontFamily.notoSansJPRegular,
     color: Color.colorDimgray,
   },
