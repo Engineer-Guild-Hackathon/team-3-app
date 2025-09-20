@@ -29,7 +29,7 @@ export type CheckboxProps = {
   testID?: string;
 };
 
-const Checkbox = React.forwardRef<Pressable, CheckboxProps>(
+const Checkbox = React.forwardRef<React.ElementRef<typeof Pressable>, CheckboxProps>(
   (
     {
       checked,
