@@ -1,12 +1,13 @@
 "use client";
 
 // 新UI: 会話本体（スクロール領域 + 入力欄）
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useMemo } from "react";
 import { motion } from "motion/react";
 import ChatMessageView from "./ChatMessage";
 import ChatHeader from "./ChatHeader";
 import ChatInput from "./ChatInput";
 import type { ChatMessage as CoreMessage } from "@/types/chat";
+import { getLatestAssistantStatus } from "@/lib/chat/status";
 
 type Props = {
   messages: CoreMessage[];
@@ -22,6 +23,8 @@ export default function Chatbot({ messages, onSendMessage, isLoading = false, hi
   const endRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length, isLoading]);
 
+  const assistantStatus = useMemo(() => getLatestAssistantStatus(messages), [messages]);
+
   const toTime = (ts: number) => {
     try { return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch { return ""; }
   };
@@ -35,7 +38,7 @@ export default function Chatbot({ messages, onSendMessage, isLoading = false, hi
     >
       <div className="relative z-10 flex flex-col h-full">
         <div className="p-6 pb-0">
-          <ChatHeader subject={subjectLabel} topic={topicLabel} />
+          <ChatHeader subject={subjectLabel} topic={topicLabel} status={assistantStatus} />
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-4 scroll-smooth">
           {messages.map((m) => (
