@@ -23,6 +23,8 @@ export type ChatSession = {
   topicId?: string;
   topicName?: string;
   prefTopicName?: string;
+  topicDescription?: string;
+  prefTopicDescription?: string;
   messages: ChatMessage[];
   updatedAt: number;
 };

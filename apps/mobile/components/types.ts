@@ -24,6 +24,9 @@ export type ChatThread = {
   status?: "in_progress" | "ended";
   subjectId?: string | null;
   topicId?: string | null;
+  subjectLabel?: string | null;
+  topicLabel?: string | null;
+  topicDescription?: string | null;
   updatedAt?: string;
   createdAt?: string;
   messagesLoaded?: boolean;

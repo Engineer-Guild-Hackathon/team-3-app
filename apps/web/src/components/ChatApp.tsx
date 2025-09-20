@@ -16,7 +16,7 @@ import { numericIdFromUuid } from "@/lib/chat/id";
 import { messagesToTurns } from "@/lib/chat/mapping";
 import { endpoints } from "@/lib/api/endpoints";
 import { apiFetchJson } from "@/lib/http";
-import { getSubjectName, getTopicName } from "@/lib/subjects";
+import { getSubjectName, getTopicDetails } from "@/lib/subjects";
 import { loadSessions, saveSessions } from "@/lib/storage/sessionStore";
 import { listChats as apiListChats, createChat as apiCreateChat, runChat as apiRunChat, renameChat as apiRenameChat, deleteChat as apiDeleteChat } from "@/lib/api/chat";
 import {
@@ -92,7 +92,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
 
   // subject/topic 名称の解決ヘルパー（必要時のみ取得）
   const fetchSubjectName = useCallback((sid?: string) => getSubjectName(sid), []);
-  const fetchTopicName = useCallback((sid?: string, tid?: string) => getTopicName(sid, tid), []);
+  const fetchTopicDetails = useCallback((sid?: string, tid?: string) => getTopicDetails(sid, tid), []);
 
   // 空のセッションを作成
   const createSession = useCallback((fixedId?: string): ChatSession => {
@@ -397,12 +397,33 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   }, [active, tagOptionKey, tagOptionsMap, markForbidden, appJwtReady, status]);
 
   // 新規チャット
-  const handleNewChat = async (opts?: { subjectId?: string; topicId?: string; prefTopicName?: string }) => {
+  const handleNewChat = async (opts?: { subjectId?: string; topicId?: string; prefTopicName?: string; prefTopicDescription?: string }) => {
     if (status !== 'authenticated' || !appJwtReady) return;
     try {
       // API で作成（失敗時はローカルフォールバック）
       const created = await apiCreateChat({ subjectId: opts?.subjectId, topicId: opts?.topicId });
-      const s: ChatSession = { id: created.id, title: created.title ?? '新しいチャット', status: created.status ?? 'in_progress', subjectId: created.subjectId, topicId: created.topicId, prefTopicName: opts?.prefTopicName, messages: [], updatedAt: typeof created.updatedAt === 'number' ? created.updatedAt : new Date(created.updatedAt).getTime() };
+      let prefTopicName = opts?.prefTopicName;
+      let prefTopicDescription = opts?.prefTopicDescription;
+      const resolvedSubjectId = created.subjectId ?? opts?.subjectId;
+      const resolvedTopicId = created.topicId ?? opts?.topicId;
+      if ((!prefTopicName || !prefTopicDescription) && resolvedSubjectId && resolvedTopicId) {
+        try {
+          const details = await fetchTopicDetails(resolvedSubjectId, resolvedTopicId);
+          if (details?.name && !prefTopicName) prefTopicName = details.name;
+          if (details?.description && !prefTopicDescription) prefTopicDescription = details.description;
+        } catch {}
+      }
+      const s: ChatSession = {
+        id: created.id,
+        title: created.title ?? '新しいチャット',
+        status: created.status ?? 'in_progress',
+        subjectId: created.subjectId,
+        topicId: created.topicId,
+        prefTopicName,
+        prefTopicDescription,
+        messages: [],
+        updatedAt: typeof created.updatedAt === 'number' ? created.updatedAt : new Date(created.updatedAt).getTime(),
+      };
       setSessions((prev) => {
         const next = [s, ...prev];
         persist(next);
@@ -639,26 +660,54 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
       // 教科/分野ラベルの解決（未解決なら API から取得）
       let subj = current.subjectName || (current.subjectId ? '' : '数学');
       let topic = current.topicName || current.prefTopicName || '';
+      let description = current.topicDescription || current.prefTopicDescription || '';
       if (!subj && current.subjectId) {
         const name = await fetchSubjectName(current.subjectId);
         if (name) {
           subj = name;
           // セッションにも反映
-          setSessions((prev) => prev.map((s) => s.id === current.id ? { ...s, subjectName: name } : s));
+          setSessions((prev) => {
+            const next = prev.map((s) => (s.id === current.id ? { ...s, subjectName: name } : s));
+            persist(next);
+            return next;
+          });
         }
       }
-      if (!topic && current.subjectId && current.topicId) {
-        const tname = await fetchTopicName(current.subjectId, current.topicId);
-        if (tname) {
-          topic = tname;
-          setSessions((prev) => prev.map((s) => s.id === current.id ? { ...s, topicName: tname } : s));
+      if ((!topic || !description) && current.subjectId && current.topicId) {
+        const tdetails = await fetchTopicDetails(current.subjectId, current.topicId);
+        if (tdetails) {
+          if (!topic && tdetails.name) {
+            topic = tdetails.name;
+          }
+          if (!description && tdetails.description) {
+            description = tdetails.description;
+          }
+          if (tdetails.name || tdetails.description) {
+            const nameToStore = tdetails.name;
+            const descToStore = tdetails.description;
+            setSessions((prev) => {
+              const next = prev.map((s) =>
+                s.id === current.id
+                  ? {
+                      ...s,
+                      topicName: s.topicName || nameToStore || s.topicName,
+                      topicDescription: s.topicDescription || descToStore,
+                    }
+                  : s,
+              );
+              persist(next);
+              return next;
+            });
+          }
         }
       }
+      description = description.trim();
       const themeDefault = (subj || '数学') === '英語' ? '仮定法' : '確率';
       const payload: RunChatInput = {
         chatId,
         subject: subj || "数学",
         theme: topic || themeDefault,
+        description: description || undefined,
         clientSessionId: current.id,
         history: toTurns(current.messages),
       };
@@ -785,20 +834,47 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
         // 教科/分野ラベルの解決
         let subj2 = active.subjectName || (active.subjectId ? '' : '数学');
         let topic2 = active.topicName || active.prefTopicName || '';
+        let desc2 = active.topicDescription || active.prefTopicDescription || '';
         if (!subj2 && active.subjectId) {
           const name = await fetchSubjectName(active.subjectId);
           if (name) {
             subj2 = name;
-            setSessions((prev) => prev.map((s) => s.id === active.id ? { ...s, subjectName: name } : s));
+            setSessions((prev) => {
+              const next = prev.map((s) => (s.id === active.id ? { ...s, subjectName: name } : s));
+              persist(next);
+              return next;
+            });
           }
         }
-        if (!topic2 && active.subjectId && active.topicId) {
-          const tname = await fetchTopicName(active.subjectId, active.topicId);
-          if (tname) {
-            topic2 = tname;
-            setSessions((prev) => prev.map((s) => s.id === active.id ? { ...s, topicName: tname } : s));
+        if ((!topic2 || !desc2) && active.subjectId && active.topicId) {
+          const details = await fetchTopicDetails(active.subjectId, active.topicId);
+          if (details) {
+            if (!topic2 && details.name) {
+              topic2 = details.name;
+            }
+            if (!desc2 && details.description) {
+              desc2 = details.description;
+            }
+            if (details.name || details.description) {
+              const detailName = details.name;
+              const detailDesc = details.description;
+              setSessions((prev) => {
+                const next = prev.map((s) =>
+                  s.id === active.id
+                    ? {
+                        ...s,
+                        topicName: s.topicName || detailName || s.topicName,
+                        topicDescription: s.topicDescription || detailDesc,
+                      }
+                    : s,
+                );
+                persist(next);
+                return next;
+              });
+            }
           }
         }
+        desc2 = desc2.trim();
         const turns = messagesToTurns(active.messages);
 
         const themeDefault2 = (subj2 || '数学') === '英語' ? '仮定法' : '確率';
@@ -806,6 +882,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
           chatId,
           subject: subj2 || "数学",
           theme: topic2 || themeDefault2,
+          description: desc2 || undefined,
           clientSessionId: active.id,
           history: turns,
         } as RunChatInput;
@@ -855,7 +932,7 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
       }
     };
     autoIntro();
-  }, [active, sending, pendingAutoIntroId, fetchSubjectName, fetchTopicName, persist, makeAutoIntroKey, markForbidden, appJwtReady, status]);
+  }, [active, sending, pendingAutoIntroId, fetchSubjectName, fetchTopicDetails, persist, makeAutoIntroKey, markForbidden, appJwtReady, status]);
 
   // 予備：提案カードの選択ハンドラ（未使用）
 
@@ -908,9 +985,9 @@ export default function ChatApp({ initialId, showProfileOnEmpty = false }: Props
   const tagPanelLoading = tagLoading && activeChatTags.length === 0;
 
   return (
-    <div className="h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 overflow-hidden">
-      {/* 背景のアニメーション要素（日本語コメント）*/}
-      <div className="absolute inset-0 overflow-hidden">
+    <div className="relative h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 overflow-hidden">
+      {/* 背景アニメーション用レイヤー（親要素は全画面固定のまま装飾のみが被さる） */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl animate-pulse" />
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-400/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-pink-400/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />

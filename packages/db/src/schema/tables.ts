@@ -23,6 +23,7 @@ export const topics = pgTable('topics', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   subjectId: uuid('subject_id').notNull().references(() => subjects.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
+  description: text('description'),
 }, (t) => ({
   uq: sql`UNIQUE (${t.subjectId.name}, ${t.name.name})`,
 }));
